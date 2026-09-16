@@ -1,0 +1,66 @@
+name: Native Git object correctness
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  correctness:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: luce-git
+      - name: Read pins
+        id: pins
+        shell: bash
+        run: |
+          echo "base=$(tr -d '\n' < luce-git/bootstrap/BASE)" >> "$GITHUB_OUTPUT"
+          echo "luce=$(tr -d '\n' < luce-git/bootstrap/LUCE)" >> "$GITHUB_OUTPUT"
+          echo "crypto=$(tr -d '\n' < luce-git/bootstrap/CRYPTO)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: dymokomi/luce-base
+          ref: ${{ steps.pins.outputs.base }}
+          path: luce-base
+      - uses: actions/checkout@v4
+        with:
+          repository: dymokomi/luce
+          ref: ${{ steps.pins.outputs.luce }}
+          path: luce
+      - uses: actions/checkout@v4
+        with:
+          repository: dymokomi/luce-crypto
+          ref: ${{ steps.pins.outputs.crypto }}
+          path: luce-crypto
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Bootstrap without language source changes
+        working-directory: luce-git
+        run: python3 tools/bootstrap.py
+      - name: All six compiler modes
+        working-directory: luce-git
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tests/run.py 2>&1 | tee build/correctness.log
+      - name: Memory safety instrumentation
+        working-directory: luce-git
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tests/sanitize.py 2>&1 | tee build/sanitize.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: git-tests-${{ matrix.os }}
+          path: |
+            luce-git/build/correctness.log
+            luce-git/build/sanitize.log

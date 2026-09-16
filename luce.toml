@@ -1,0 +1,9 @@
+[package]
+name = "luce_git"
+source = "src"
+
+[exports]
+git = "luce_git.git"
+
+[dependencies]
+luce_crypto = "../luce-crypto"

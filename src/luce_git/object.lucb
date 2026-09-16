@@ -1,0 +1,49 @@
+## Git object IDs: SHA-1 of `{type} {size}\\0{payload}`. Not a release digest.
+import memory
+import crypto_native
+
+pub let invalid = crypto_native.invalid
+
+func append_decimal(out: u8[], at: usize, value: usize) -> usize:
+    if value == 0:
+        out[at] = '0'
+        return at + 1
+    var digits: u8[20]
+    var n: usize
+    var v = value
+    while v != 0:
+        digits[n] = '0' + (u8)(v % 10)
+        v = v // 10
+        n += 1
+    var i = at
+    while n > 0:
+        n -= 1
+        out[i] = digits[n]
+        i += 1
+    return i
+
+pub func hash_blob(payload: const u8[], out: u8[]) -> usize!:
+    if out.length < 20: error(invalid, "Git object hash output is too small")
+    var header: u8[32]
+    header[0] = 'b'
+    header[1] = 'l'
+    header[2] = 'o'
+    header[3] = 'b'
+    header[4] = ' '
+    var at = append_decimal(header, 5, payload.length)
+    header[at] = 0
+    at += 1
+    let total = at + payload.length
+    let buffer = try alloc u8[total] in memory.heap
+    defer free(buffer) in memory.heap
+    for i in 0..<at: buffer[i] = header[i]
+    for i in 0..<payload.length: buffer[at + i] = payload[i]
+    return try crypto_native.sha1_digest(buffer, out)
+
+pub func hex_id(id: const u8[], out: u8[]) -> usize!:
+    if id.length != 20 or out.length < 40: error(invalid, "Git object id is 20 bytes")
+    let digits = b"0123456789abcdef"
+    for i in 0..<(usize)20:
+        out[i * 2] = digits[(usize)(id[i] >> 4)]
+        out[i * 2 + 1] = digits[(usize)(id[i] & 15)]
+    return 40

@@ -1,0 +1,9 @@
+import luce_git.object as object
+
+pub let invalid = object.invalid
+
+pub func hash_blob(payload: const u8[], out: u8[]) -> usize!:
+    return try object.hash_blob(payload, out)
+
+pub func hex_id(id: const u8[], out: u8[]) -> usize!:
+    return try object.hex_id(id, out)

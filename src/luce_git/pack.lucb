@@ -1,4 +1,4 @@
-## Owning bounded SHA-1 pack reader. No thin-pack external lookup or disk writes.
+## Owning bounded SHA-1 pack reader, with optional borrowed external bases.
 import memory
 import compress
 import crypto_native
@@ -53,9 +53,44 @@ func identify(item: Item*) -> !:
     discard(try object.hash_object(item.kind, item.payload, item.id))
     item.resolved = true
 
-func resolve(pack: Pack*, total: usize) -> !:
+## Return none for a missing base. The result borrows caller storage until the
+## next lookup or decode return. No returned borrow is retained by the pack.
+pub type Lookup = func(const u8[], void*?) -> object.Object?!
+
+func missing(id: const u8[], context: void*?) -> object.Object?!:
+    discard(id)
+    discard(context)
+    return none
+
+func expand(item: Item*, base: object.Object, depth: usize, bytes: usize*) -> !:
+    if depth >= 64: error(object.invalid, "pack delta chain too deep")
+    # Canonicalize kind: external storage may disappear on the next lookup.
+    var kind: str
+    if base.kind == "blob": kind = "blob"
+    elif base.kind == "tree": kind = "tree"
+    elif base.kind == "commit": kind = "commit"
+    elif base.kind == "tag": kind = "tag"
+    else: error(object.invalid, "invalid external pack base kind")
+    let size = try delta.result_size(base.payload.length, item.payload)
+    if size > 67108864 - *bytes: error(object.invalid, "pack expanded byte limit exceeded")
+    var result: u8[]
+    if size > 0: result = try alloc u8[size] in memory.heap
+    errdefer release_bytes(result)
+    discard(try delta.apply(base.payload, item.payload, result))
+    if item.payload.length > 0: free(item.payload) in memory.heap
+    item.payload = result
+    var empty: u8[]
+    result = empty
+    item.kind = kind
+    item.depth = depth + 1
+    try identify(item)
+    *bytes += size
+
+func resolve(pack: Pack*, total: usize, lookup: Lookup, context: void*?) -> !:
     var bytes = total
     var budget: usize = 16777216
+    var lookups: usize = 0
+    var external_bytes: usize = 0
     var unresolved: usize = 0
     for i in 0..<pack.items.length:
         if not pack.items[i].resolved: unresolved += 1
@@ -71,29 +106,33 @@ func resolve(pack: Pack*, total: usize) -> !:
                 if not base.resolved: continue
                 let matches = base.offset == item.base_offset if item.form == 6 else crypto_native.equal(base.id, item.base_id)
                 if not matches: continue
-                if base.depth >= 64: error(object.invalid, "pack delta chain too deep")
-                let size = try delta.result_size(base.payload.length, item.payload)
-                if size > 67108864 - bytes: error(object.invalid, "pack expanded byte limit exceeded")
-                var result: u8[]
-                if size > 0: result = try alloc u8[size] in memory.heap
-                errdefer release_bytes(result)
-                discard(try delta.apply(base.payload, item.payload, result))
-                if item.payload.length > 0: free(item.payload) in memory.heap
-                item.payload = result
-                var empty: u8[]
-                result = empty
-                item.kind = base.kind
-                item.depth = base.depth + 1
-                try identify(item)
-                bytes += size
+                try expand(item, object.Object(base.kind, base.payload), base.depth, &bytes)
                 unresolved -= 1
                 progress = true
                 break
-        if not progress: error(object.invalid, "missing or cyclic pack delta base (thin packs unsupported)")
+        if progress: continue
+        for i in 0..<pack.items.length:
+            let item = &pack.items[i]
+            if item.resolved or item.form != 7: continue
+            if lookups >= 4096: error(object.invalid, "external pack lookup limit exceeded")
+            lookups += 1
+            let base = (try lookup(item.base_id, context)) else continue
+            if base.payload.length > 67108864 - external_bytes:
+                error(object.invalid, "external pack base byte limit exceeded")
+            external_bytes += base.payload.length
+            var actual: u8[20]
+            discard(try object.hash_object(base.kind, base.payload, actual))
+            if not crypto_native.equal(actual, item.base_id):
+                error(object.invalid, "external pack base ID mismatch")
+            try expand(item, base, 0, &bytes)
+            unresolved -= 1
+            progress = true
+            break
+        if not progress: error(object.invalid, "missing or cyclic pack delta base")
 
 ## Accept complete self-contained version 2/3 SHA-1 packs. All returned bytes are
 ## owned; close exactly once (close itself is idempotent), never copy ownership.
-pub func decode(input: const u8[]) -> Pack!:
+pub func decode(input: const u8[], lookup: Lookup = missing, context: void*? = none) -> Pack!:
     if input.length < 32 or input.length > 67108864: error(object.invalid, "pack byte limit invalid")
     let end = input.length - 20
     var checksum: u8[20]
@@ -154,5 +193,5 @@ pub func decode(input: const u8[]) -> Pack!:
         total += size
         if item.form < 5: try identify(item)
     if at != end: error(object.invalid, "trailing pack entries or bytes")
-    try resolve(&result, total)
+    try resolve(&result, total, lookup, context)
     return result

@@ -22,9 +22,15 @@ def check(binary):
     with tempfile.TemporaryDirectory(prefix='git-pack-') as temporary:
         root = Path(temporary)
         path = root / 'input.pack'
-        def run(wire, expected=None):
+        bases_path = root / 'bases.pack'
+        def run(wire, expected=None, bases=None, wrong=False):
             path.write_bytes(wire)
-            result = subprocess.run([str(binary), str(path)], capture_output=True, timeout=30)
+            arguments = [str(binary), str(path)]
+            if bases is not None:
+                bases_path.write_bytes(bases)
+                arguments.append(str(bases_path))
+            if wrong: arguments.append('wrong')
+            result = subprocess.run(arguments, capture_output=True, timeout=30)
             assert result.returncode >= 0 and b'Sanitizer' not in result.stderr and b'runtime error:' not in result.stderr, result.stderr
             if expected is None:
                 assert result.returncode != 0, 'invalid pack accepted'
@@ -52,6 +58,16 @@ def check(binary):
             mixed_expected.append(f'{kind} {oid} {len(payload)}')
         run(finish(mixed, 4), mixed_expected)
         run(finish(ref, 1))  # thin/missing base
+        run(finish(ref, 1), [line(target)], bases=finish(full, 1))
+        run(finish(ref, 1), bases=finish(b'', 0))
+        wrong_base = pack_header(3, 5) + zlib.compress(b'wrong')
+        run(finish(ref, 1), bases=finish(wrong_base, 1), wrong=True)
+        # Forward internal dependency must become resolvable after an external
+        # base lookup, even when the first callback returns missing.
+        later = target + b'!'
+        later_delta = varint(len(target)) + varint(len(later)) + copy_instruction(0, len(target)) + b'\x01!'
+        later_ref = pack_header(7, len(later_delta)) + identity(target) + zlib.compress(later_delta)
+        run(finish(later_ref + ref, 2), [line(target), line(later)], bases=finish(full, 1))
         run(finish(full + pack_header(6, len(delta)) + b'\0' + zlib.compress(delta), 2))
         run(finish(full + pack_header(6, len(delta)) + ofs(len(full) - 1) + zlib.compress(delta), 2))
         for version in (0, 1, 4): run(finish(b'', 0, version))

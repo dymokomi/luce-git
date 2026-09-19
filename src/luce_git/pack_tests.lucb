@@ -2,12 +2,36 @@ import git
 import files
 import c
 import memory
+import crypto_native
+
+struct Bases:
+    var pack: git.Pack
+    var wrong: bool
+    var kind: u8[6]
+
+func lookup(id: const u8[], context: void*?) -> git.Object?!:
+    let bases = (Bases*)(context else error(git.invalid, "missing fixture context"))
+    for i in 0..<bases.pack.items.length:
+        let item = &bases.pack.items[i]
+        if bases.wrong or crypto_native.equal(id, item.id):
+            for j in 0..<item.kind.length: bases.kind[j] = item.kind.bytes[j]
+            return git.Object((str)bases.kind[..<item.kind.length], item.payload)
+    return none
 
 pub func main(arguments: c.str[]) -> i32!:
-    if arguments.length == 2:
+    if arguments.length >= 2:
         let input = try files.read_limit(arguments[1], 67108864)
         defer free(input) in memory.heap
-        var pack = try git.decode_pack(input)
+        var bases = Bases()
+        defer bases.pack.close()
+        if arguments.length >= 3:
+            let source = try files.read_limit(arguments[2], 67108864)
+            defer free(source) in memory.heap
+            bases.pack = try git.decode_pack(source)
+        bases.wrong = arguments.length == 4
+        var pack = try git.decode_pack_with(input, lookup, (void*)&bases)
+        # Overwrite borrowed kind storage before inspecting the decoded result.
+        for j in 0..<6: bases.kind[j] = 'x'
         defer pack.close()
         for i in 0..<pack.items.length:
             let item = &pack.items[i]

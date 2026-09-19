@@ -38,9 +38,14 @@ pub func encode_pack(objects: const Object[], output: u8[]) -> usize!:
 
 pub type Pack = pack.Pack
 pub type PackItem = pack.Item
+pub type PackLookup = pack.Lookup
 
 pub func decode_pack(input: const u8[]) -> Pack!:
     return try pack.decode(input)
+
+## Decode a thin pack with bounded, SHA-1-verified borrowed base lookup.
+pub func decode_pack_with(input: const u8[], lookup: PackLookup, context: void*?) -> Pack!:
+    return try pack.decode(input, lookup, context)
 
 pub func apply_delta(base: const u8[], instructions: const u8[], output: u8[]) -> usize!:
     return try delta.apply(base, instructions, output)

@@ -64,8 +64,16 @@ reconstructs offset/reference deltas, including forward references. The returned
 `Pack` owns its `items`, payloads and IDs: call `close()` and do not copy ownership.
 Limits: 64 MiB input, 4096 objects, 64 MiB cumulative inflated-plus-reconstructed
 bytes, 64 delta levels and 16,777,216 base-search comparisons. Resolution currently
-uses bounded linear searches; indexing is future work. Missing/cyclic bases and
-thin packs requiring external objects fail. This is not yet an ingestion service:
+uses bounded linear searches; indexing is future work. Missing/cyclic bases fail.
+`decode_pack_with(bytes, lookup, context)` also accepts thin packs. Its exact-type
+callback returns an optional borrowed `Object`; missing objects return `none`,
+errors propagate, and the borrow need only survive until the next callback or
+decode return. Every external base is SHA-1-verified before use; returned packs
+retain neither its payload nor kind storage. Only REF deltas consult lookup,
+after internal resolution stalls. Additional limits are 4096 lookups and 64 MiB
+cumulative external-base bytes (including repeated successful lookups). Callers
+must authorize and bound lookup storage access themselves.
+This is not yet an ingestion service:
 object semantics, collision rejection, authorization, durable storage, pack writing
 and protocol negotiation remain separate requirements. Tests read real stock-Git
 packs as well as malformed, forward-reference and offset fixtures.

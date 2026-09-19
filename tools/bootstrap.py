@@ -24,7 +24,8 @@ def main():
     if not host:
         raise SystemExit("Use explicit compiler paths on this platform.")
     crypto = ROOT.parent / "luce-crypto"
-    for source, pin in ((base, "BASE"), (luce, "LUCE"), (crypto, "CRYPTO")):
+    compression = ROOT.parent / "luce-compress"
+    for source, pin in ((base, "BASE"), (luce, "LUCE"), (crypto, "CRYPTO"), (compression, "COMPRESS")):
         expected = (ROOT / "bootstrap" / pin).read_text().strip()
         actual = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
         if subprocess.check_output(["git", "-C", str(source), "status", "--porcelain"]):

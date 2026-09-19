@@ -24,6 +24,7 @@ jobs:
           echo "base=$(tr -d '\n' < luce-git/bootstrap/BASE)" >> "$GITHUB_OUTPUT"
           echo "luce=$(tr -d '\n' < luce-git/bootstrap/LUCE)" >> "$GITHUB_OUTPUT"
           echo "crypto=$(tr -d '\n' < luce-git/bootstrap/CRYPTO)" >> "$GITHUB_OUTPUT"
+          echo "compress=$(tr -d '\n' < luce-git/bootstrap/COMPRESS)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           repository: dymokomi/luce-base
@@ -39,6 +40,11 @@ jobs:
           repository: dymokomi/luce-crypto
           ref: ${{ steps.pins.outputs.crypto }}
           path: luce-crypto
+      - uses: actions/checkout@v4
+        with:
+          repository: dymokomi/luce-compress
+          ref: ${{ steps.pins.outputs.compress }}
+          path: luce-compress
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'

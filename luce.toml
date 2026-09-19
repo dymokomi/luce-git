@@ -7,3 +7,4 @@ git = "luce_git.git"
 
 [dependencies]
 luce_crypto = "../luce-crypto"
+luce_compress = "../luce-compress"

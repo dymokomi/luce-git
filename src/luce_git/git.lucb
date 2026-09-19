@@ -1,5 +1,15 @@
 import luce_git.object as object
 import luce_git.packet as packet
+import luce_git.loose as loose
+import interop
+
+pub type CompressedObject = loose.Compressed
+
+pub func encode_loose(kind: str, payload: const u8[], max_output: i64 = 67108864) -> interop.Reference[CompressedObject]!:
+    return try loose.encode(kind, payload, max_output)
+
+pub func decode_loose(input: const u8[], expected_id: const u8[], output: u8[]) -> Object!:
+    return try loose.decode(input, expected_id, output)
 
 pub type Packet = packet.Packet
 pub type PacketKind = packet.Kind

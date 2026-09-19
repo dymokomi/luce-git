@@ -1,0 +1,68 @@
+import git
+import compress
+import files
+import memory
+import c
+
+func rejected(input: const u8[], id: const u8[], capacity: usize):
+    var output: u8[256]
+    for i in 0..<output.length: output[i] = 77
+    var failed = false
+    discard(git.decode_loose(input, id, output[..<capacity]) catch failure:
+        failed = true
+        recover git.Object())
+    assert(failed)
+    for byte in output: assert(byte == 77)
+
+pub func main(arguments: c.str[]) -> i32!:
+    if arguments.length == 5:
+        let mode = (str)arguments[1]
+        let input = try files.read_limit(arguments[3], 1048576)
+        defer free(input) in memory.heap
+        if mode == "encode":
+            let encoded = try git.encode_loose((str)arguments[2], input)
+            defer encoded.release()
+            try files.write(arguments[4], try encoded.value().bytes())
+        else:
+            assert(mode == "decode")
+            let id = try files.read_limit(arguments[2], 20)
+            defer free(id) in memory.heap
+            let output = try alloc u8[1048576] in memory.heap
+            defer free(output) in memory.heap
+            let decoded = try git.decode_loose(input, id, output)
+            try files.write(arguments[4], decoded.payload)
+        return 0
+    assert(arguments.length == 1)
+    let payload = b"hello\0binary\n"
+    var id: u8[20]
+    var output: u8[256]
+    for kind in ["blob", "tree", "commit", "tag"]:
+        discard(try git.hash_object(kind, payload, id))
+        let encoded = try git.encode_loose(kind, payload)
+        defer encoded.release()
+        let compressed = try encoded.value().bytes()
+        let decoded = try git.decode_loose(compressed, id, output)
+        assert(decoded.kind == kind and decoded.payload.length == payload.length)
+        for i in 0..<payload.length: assert(decoded.payload[i] == payload[i])
+        for end in 0..<compressed.length: rejected(compressed[..<end], id, 256)
+        rejected(compressed, id, 1)
+        rejected(compressed, id[..<19], 256)
+        id[0] ^= 1
+        rejected(compressed, id, 256)
+        id[0] ^= 1
+        var corrupt: u8[256]
+        for i in 0..<compressed.length: corrupt[i] = compressed[i]
+        corrupt[compressed.length] = 0
+        rejected(corrupt[..<compressed.length + 1], id, 256)
+        corrupt[compressed.length - 1] ^= 1
+        rejected(corrupt[..<compressed.length], id, 256)
+    # Valid zlib but an invalid canonical object header is rejected too.
+    let invalid = try compress.encode(b"blob 01\0x")
+    defer invalid.release()
+    rejected(try invalid.value().bytes(), id, 256)
+    let empty = try git.encode_loose("blob", b"")
+    defer empty.release()
+    discard(try git.hash_blob(b"", id))
+    assert((try git.decode_loose(try empty.value().bytes(), id, output)).payload.length == 0)
+    print("PASS loose objects: zlib, binary, IDs, bounds, truncation, checksum and atomic rejection")
+    return 0

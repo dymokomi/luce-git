@@ -22,6 +22,18 @@ Tests compare all four types against stock `git hash-object --literally` and an
 independent SHA-1 implementation, plus canonical framing and rejection tests.
 Stock Git is only an interoperability oracle, never a runtime dependency.
 
+`encode_loose(kind, payload, max_output)` returns an owning reference to a native
+zlib-compressed object; read `result.value().bytes()` and release the reference.
+`decode_loose(compressed, expected_id, output)` requires a raw 20-byte Git ID,
+validates the entire zlib stream and canonical object envelope, and verifies the
+ID before copying into caller storage. Its returned object borrows that storage.
+Failures leave the output unchanged; trailing/concatenated streams are rejected.
+This buffered API caps compressed input/output and decompressed storage at 64 MiB;
+encoding reserves 32 bytes of that limit for the header. Smaller caller buffers
+bound decompression, including high-expansion streams. Compression is entirely
+native `luce-compress`, pinned in `bootstrap/COMPRESS`. An expected SHA-1 ID is
+not publisher authentication, collision protection or permission to extract paths.
+
 `encode_packet` / `decode_packet` provide binary-safe pkt-line framing with a
 65520-byte total limit, plus flush, delimiter and response-end controls. The
 decoder returns one packet and a consumed count; fields borrow retained input.

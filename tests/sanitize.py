@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 from run import ROOT, SOURCES
 from object_oracle import check
+from loose_oracle import check as check_loose
 
 
 def main():
@@ -29,6 +30,7 @@ def main():
              generated, runtime / "lucb_rt.c", "-pthread", "-lm", "-o", output / name])
         run([output / name])
         if name == 'object-tests': check(output / name)
+        if name == 'loose-tests': check_loose(output / name)
     print("PASS AddressSanitizer + UndefinedBehaviorSanitizer", flush=True)
 
 

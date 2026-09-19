@@ -1,0 +1,36 @@
+## Bounded zlib loose-object transport. No filesystem or object graph policy here.
+import compress
+import interop
+import memory
+import crypto_native
+import luce_git.object as object
+
+pub let maximum: usize = 67108864
+pub type Compressed = compress.Data
+
+pub func encode(kind: str, payload: const u8[], max_output: i64 = 67108864) -> interop.Reference[Compressed]!:
+    if payload.length > maximum - 32 or max_output < 0 or max_output > (i64)maximum:
+        error(object.invalid, "loose object exceeds buffered codec limits")
+    let plain = try alloc u8[payload.length + 32] in memory.heap
+    defer free(plain) in memory.heap
+    let size = try object.encode(kind, payload, plain)
+    return try compress.encode(plain[..<size], max_output)
+
+## Decode into caller-owned storage only after complete framing and ID checks.
+## Result borrows output; all errors leave output unchanged. Input may alias it.
+## Bounds include the uncompressed header. Concatenated streams are rejected.
+pub func decode(input: const u8[], expected_id: const u8[], output: u8[]) -> object.Object!:
+    if expected_id.length != 20 or input.length > maximum or output.length > maximum:
+        error(object.invalid, "loose object ID or buffer limit invalid")
+    let decoded = try compress.decode(input, (i64)output.length)
+    defer decoded.release()
+    let bytes = try decoded.value().bytes()
+    let view = try object.decode(bytes)
+    var actual: u8[20]
+    discard(try crypto_native.sha1_digest(bytes, actual))
+    if not crypto_native.equal(actual, expected_id):
+        error(object.invalid, "loose object ID mismatch")
+    # Header validation and ID check happen before touching caller storage.
+    discard(view)
+    for i in 0..<bytes.length: output[i] = bytes[i]
+    return try object.decode(output[..<bytes.length])

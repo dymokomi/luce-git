@@ -1,4 +1,14 @@
 import luce_git.object as object
+import luce_git.packet as packet
+
+pub type Packet = packet.Packet
+pub type PacketKind = packet.Kind
+
+pub func decode_packet(input: const u8[]) -> Packet!:
+    return try packet.decode(input)
+
+pub func encode_packet(kind: PacketKind, payload: const u8[], output: u8[]) -> usize!:
+    return try packet.encode(kind, payload, output)
 
 pub let invalid = object.invalid
 

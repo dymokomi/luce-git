@@ -1,0 +1,49 @@
+## Binary-safe Git pkt-line framing. Views borrow the caller's input.
+import luce_git.object as object
+
+pub enum Kind as u8:
+    data = 0
+    flush = 1
+    delimiter = 2
+    response_end = 3
+
+pub struct Packet:
+    pub var kind: Kind
+    pub var payload: const u8[]
+    pub var consumed: usize
+
+pub func decode(input: const u8[]) -> Packet!:
+    if input.length < 4: error(object.invalid, "truncated Git packet header")
+    var length: usize = 0
+    for i in 0..<4:
+        let byte = input[i]
+        var digit: usize
+        if byte >= '0' and byte <= '9': digit = (usize)(byte - '0')
+        elif byte >= 'a' and byte <= 'f': digit = (usize)(byte - 'a' + 10)
+        elif byte >= 'A' and byte <= 'F': digit = (usize)(byte - 'A' + 10)
+        else: error(object.invalid, "invalid Git packet length")
+        length = length * 16 + digit
+    if length <= 2:
+        let kind = Kind.flush if length == 0 else (Kind.delimiter if length == 1 else Kind.response_end)
+        return Packet(kind = kind, consumed = 4)
+    if length == 3 or length > 65520: error(object.invalid, "Git packet length outside bounds")
+    if length > input.length: error(object.invalid, "truncated Git packet payload")
+    return Packet(kind = Kind.data, payload = input[4..<length], consumed = length)
+
+## Output must not overlap input; validation errors leave output unchanged.
+pub func encode(kind: Kind, payload: const u8[], output: u8[]) -> usize!:
+    if payload.length > 65516: error(object.invalid, "Git packet payload too large")
+    var length: usize
+    if kind == Kind.data:
+        length = payload.length + 4
+    elif kind == Kind.flush or kind == Kind.delimiter or kind == Kind.response_end:
+        if payload.length != 0: error(object.invalid, "Git control packet has a payload")
+        length = 0 if kind == Kind.flush else (1 if kind == Kind.delimiter else 2)
+    else: error(object.invalid, "invalid Git packet kind")
+    let size = length if length >= 4 else 4
+    if output.length < size: error(object.invalid, "Git packet output too small")
+    let digits = b"0123456789abcdef"
+    for i in 0..<4:
+        output[i] = digits[(length >> ((3 - i) * 4)) & 15]
+    for i in 0..<payload.length: output[4 + i] = payload[i]
+    return size

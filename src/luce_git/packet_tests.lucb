@@ -1,0 +1,53 @@
+import git
+
+pub func main(arguments: str[]) -> i32!:
+    discard(arguments)
+    var wire: u8[65521]
+    var payload: u8[65517]
+    for i in 0..<payload.length: payload[i] = (u8)(i % 256)
+    for size in [(usize)0, 1, 255, 4096, 65516]:
+        let n = try git.encode_packet(git.PacketKind.data, payload[..<size], wire)
+        assert(n == size + 4)
+        let result = try git.decode_packet(wire[..<n])
+        assert(result.kind == git.PacketKind.data and result.consumed == n and result.payload.length == size)
+        for i in 0..<size: assert(result.payload[i] == payload[i])
+    for kind in [git.PacketKind.flush, git.PacketKind.delimiter, git.PacketKind.response_end]:
+        assert(try git.encode_packet(kind, b"", wire) == 4)
+        let result = try git.decode_packet(wire[..<4])
+        assert(result.kind == kind and result.payload.length == 0 and result.consumed == 4)
+    let fixture = b"000bfoobar\n0000"
+    let first = try git.decode_packet(fixture)
+    assert(first.consumed == 11 and (str)first.payload == "foobar\n")
+    assert((try git.decode_packet(fixture[first.consumed..])).kind == git.PacketKind.flush)
+    for length in 0..<11:
+        var rejected = false
+        discard(git.decode_packet(fixture[..<length]) catch failure:
+            assert(failure.code == git.invalid)
+            rejected = true
+            recover git.Packet())
+        assert(rejected)
+    for bad in [b"0003", b"fff1", b"ffff", b"000x", b" 004"]:
+        var rejected = false
+        discard(git.decode_packet(bad) catch failure:
+            assert(failure.code == git.invalid)
+            rejected = true
+            recover git.Packet())
+        assert(rejected)
+    wire[0] = 99
+    var rejected = false
+    discard(git.encode_packet(git.PacketKind.data, payload, wire) catch:
+        rejected = true
+        recover 0)
+    assert(rejected and wire[0] == 99)
+    rejected = false
+    discard(git.encode_packet(git.PacketKind.flush, b"x", wire) catch:
+        rejected = true
+        recover 0)
+    assert(rejected and wire[0] == 99)
+    rejected = false
+    discard(git.encode_packet(git.PacketKind.data, b"x", wire[..<4]) catch:
+        rejected = true
+        recover 0)
+    assert(rejected and wire[0] == 99)
+    print("PASS Git pkt-line binary data, controls, bounds, truncation and concatenation")
+    return 0

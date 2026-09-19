@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """Instrument generated Base C; does not replace native-mode tests."""
 import os
+import argparse
 from pathlib import Path
 import subprocess
 from run import ROOT, SOURCES
 
 
 def main():
-    base = ROOT / "build/toolchain/luce-base"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--base', type=Path, default=ROOT / 'build/toolchain/luce-base')
+    base = parser.parse_args().base
+    os.environ.setdefault('LUCE_STD', str(ROOT.parent / 'luce-base/src/std'))
+    os.environ.setdefault('LUCE_CACHE', str(ROOT / 'build/cache'))
     runtime = ROOT.parent / "luce-base/runtime"
     output = ROOT / "build/sanitize"
     output.mkdir(parents=True, exist_ok=True)

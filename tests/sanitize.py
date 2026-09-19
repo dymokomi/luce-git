@@ -10,6 +10,7 @@ from loose_oracle import check as check_loose
 from tree_oracle import check as check_tree
 from delta_oracle import check as check_delta
 from pack_oracle import check as check_pack
+from pack_writer_oracle import check as check_pack_writer
 
 
 def main():
@@ -37,6 +38,7 @@ def main():
         if name == 'tree-tests': check_tree(output / name)
         if name == 'delta-tests': check_delta(output / name)
         if name == 'pack-tests': check_pack(output / name)
+        if name == 'pack-writer-tests': check_pack_writer(output / name)
     print("PASS AddressSanitizer + UndefinedBehaviorSanitizer", flush=True)
 
 

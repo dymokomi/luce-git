@@ -1,0 +1,57 @@
+## Deterministic full-object pack v2 writer. Delta selection is an optimization,
+## not required for interoperability; this writer emits no thin packs.
+import compress
+import crypto_native
+import memory
+import luce_git.object as object
+
+func kind_code(kind: str) -> u8!:
+    if kind == "commit": return 1
+    if kind == "tree": return 2
+    if kind == "blob": return 3
+    if kind == "tag": return 4
+    error(object.invalid, "unknown pack object kind")
+
+func put(buffer: u8[], used: usize*, data: const u8[]) -> !:
+    if data.length > buffer.length - *used: error(object.invalid, "pack output too small")
+    for i in 0..<data.length: buffer[*used + i] = data[i]
+    *used += data.length
+
+pub func encode(objects: const object.Object[], output: u8[]) -> usize!:
+    if objects.length > 4096 or output.length < 32 or output.length > 67108864:
+        error(object.invalid, "pack writer count or output limit invalid")
+    var total: usize = 0
+    for item in objects:
+        discard(try kind_code(item.kind))
+        if item.payload.length > 67108864 - total: error(object.invalid, "pack writer input limit exceeded")
+        total += item.payload.length
+    let buffer = try alloc u8[output.length] in memory.heap
+    defer free(buffer) in memory.heap
+    var used: usize = 0
+    var header: u8[12] = ['P', 'A', 'C', 'K', 0, 0, 0, 2, 0, 0, 0, 0]
+    for i in 0..<4: header[8 + i] = (u8)((objects.length >> ((3 - i) * 8)) & 255)
+    try put(buffer, &used, header)
+    for item in objects:
+        var size = item.payload.length
+        var encoded: u8[16]
+        encoded[0] = ((try kind_code(item.kind)) << 4) | (u8)(size & 15)
+        size >>= 4
+        if size > 0: encoded[0] |= 128
+        var count: usize = 1
+        while size > 0:
+            encoded[count] = (u8)(size & 127)
+            size >>= 7
+            if size > 0: encoded[count] |= 128
+            count += 1
+        try put(buffer, &used, encoded[..<count])
+        if output.length - used < 20: error(object.invalid, "pack output too small")
+        let compressed = try compress.encode(item.payload, (i64)(output.length - used - 20))
+        defer compressed.release()
+        try put(buffer, &used, try compressed.value().bytes())
+    var checksum: u8[20]
+    discard(try crypto_native.sha1_digest(buffer[..<used], checksum))
+    try put(buffer, &used, checksum)
+    # Publication to caller memory happens only after every fallible operation.
+    let wire = buffer[..<used]
+    for i in 0..<wire.length: output[i] = wire[i]
+    return wire.length

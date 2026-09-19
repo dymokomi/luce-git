@@ -1,0 +1,50 @@
+import git
+import files
+import c
+
+pub func main(arguments: c.str[]) -> i32!:
+    let objects: git.Object[4] = [
+        git.Object(kind = "blob", payload = b"hello\0pack\n"),
+        git.Object(kind = "tree", payload = b""),
+        git.Object(kind = "commit", payload = b"tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\nauthor Test <test@example.invalid> 1 +0000\ncommitter Test <test@example.invalid> 1 +0000\n\nfixture\n"),
+        git.Object(kind = "blob", payload = b"")]
+    var wire: u8[4096]
+    let size = try git.encode_pack(objects, wire)
+    if arguments.length == 2:
+        try files.write(arguments[1], wire[..<size])
+        return 0
+    assert(arguments.length == 1)
+    var pack = try git.decode_pack(wire[..<size])
+    defer pack.close()
+    assert(pack.items.length == objects.length)
+    for i in 0..<objects.length:
+        assert(pack.items[i].kind == objects[i].kind)
+        assert(pack.items[i].payload.length == objects[i].payload.length)
+        for j in 0..<objects[i].payload.length:
+            assert(pack.items[i].payload[j] == objects[i].payload[j])
+    var again: u8[4096]
+    assert(try git.encode_pack(objects, again) == size)
+    for i in 0..<size: assert(wire[i] == again[i])
+    let capacities: usize[5] = [0, 1, 31, 32, size - 1]
+    for capacity in capacities:
+        for i in 0..<again.length: again[i] = 77
+        var failed = false
+        discard(git.encode_pack(objects, again[..<capacity]) catch failure:
+            failed = true
+            recover 0)
+        assert(failed)
+        for byte in again: assert(byte == 77)
+    let bad: git.Object[1] = [git.Object(kind = "unknown", payload = b"")]
+    var failed = false
+    discard(git.encode_pack(bad, again) catch failure:
+        failed = true
+        recover 0)
+    assert(failed)
+    for byte in again: assert(byte == 77)
+    var empty: git.Object[]
+    assert(try git.encode_pack(empty, wire) == 32)
+    var decoded = try git.decode_pack(wire[..<32])
+    defer decoded.close()
+    assert(decoded.items.length == 0)
+    print("PASS deterministic pack writer, full-object roundtrip, empty pack and atomic rejection")
+    return 0

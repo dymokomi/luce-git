@@ -5,6 +5,10 @@ import interop
 import luce_git.tree as tree
 import luce_git.delta as delta
 import luce_git.pack as pack
+import luce_git.pack_writer as pack_writer
+
+pub func encode_pack(objects: const Object[], output: u8[]) -> usize!:
+    return try pack_writer.encode(objects, output)
 
 pub type Pack = pack.Pack
 pub type PackItem = pack.Item

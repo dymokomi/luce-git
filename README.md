@@ -70,6 +70,15 @@ object semantics, collision rejection, authorization, durable storage, pack writ
 and protocol negotiation remain separate requirements. Tests read real stock-Git
 packs as well as malformed, forward-reference and offset fixtures.
 
+`encode_pack(objects, output)` writes deterministic version-2 packs containing full
+objects with native zlib compression and a SHA-1 trailer. It stages output so a
+failure cannot partially modify the caller buffer. Limits are 4096 objects,
+64 MiB total input payload and 64 MiB output; scratch storage equals output
+capacity, plus the current compressed object. Input order is preserved. Delta
+selection is not implemented. This encoder does not validate object semantics or
+authorize publication. Tests require stock Git `index-pack --strict`, `cat-file`
+and `fsck --strict` to accept a native-written fixture repository.
+
 `encode_packet` / `decode_packet` provide binary-safe pkt-line framing with a
 65520-byte total limit, plus flush, delimiter and response-end controls. The
 decoder returns one packet and a consumed count; fields borrow retained input.

@@ -9,11 +9,13 @@ from loose_oracle import check as check_loose
 from tree_oracle import check as check_tree
 from delta_oracle import check as check_delta
 from pack_oracle import check as check_pack
+from pack_writer_oracle import check as check_pack_writer
 
 ROOT = Path(__file__).resolve().parents[1]
 MODES = {f"native{i}": ["--native", "--opt", str(i)] for i in range(4)}
 MODES.update({"c": ["--backend=c"], "c-release": ["--backend=c", "--release"]})
 SOURCES = [("src/luce_git/git_tests.lucb", "git-tests"),
+           ("src/luce_git/pack_writer_tests.lucb", "pack-writer-tests"),
            ("src/luce_git/pack_tests.lucb", "pack-tests"),
            ("src/luce_git/delta_tests.lucb", "delta-tests"),
            ("src/luce_git/tree_tests.lucb", "tree-tests"),
@@ -47,6 +49,7 @@ def main():
             if name == 'tree-tests': check_tree(output / name)
             if name == 'delta-tests': check_delta(output / name)
             if name == 'pack-tests': check_pack(output / name)
+            if name == 'pack-writer-tests': check_pack_writer(output / name)
         print(f"PASS {mode}", flush=True)
     print("PASS all selected compiler modes", flush=True)
 

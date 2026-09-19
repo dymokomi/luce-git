@@ -141,7 +141,9 @@ responsibility. This is framing, not an implementation of fetch/push negotiation
 and the remaining pack bytes. It requires a flush, valid IDs/ref names, unique
 refs and at least one non-null ID per command. Limits are 1 MiB of command data,
 4096 capability bytes and 64 MiB of pack data. Optional trailing LF is removed
-from command packets. Delete-only requests cannot carry a pack; create/update
+from command packets. Capability lists accept boundary spaces used by stock Git's
+HTTP send-pack; the returned view trims them while preserving strict interior
+tokens. Delete-only requests cannot carry a pack; create/update
 requests must carry at least a 32-byte PACK-prefixed payload, including empty packs.
 The caller must still fully decode/verify that pack: this parser does not check
 its checksum or graph. Shallow updates, push certificates, push-options sections

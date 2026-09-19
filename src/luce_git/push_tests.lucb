@@ -24,7 +24,9 @@ pub func main(arguments: str[]) -> i32!:
         print(f"{request.pack.length}")
         return 0
     var wire: u8[65536]
-    let create = b"0000000000000000000000000000000000000000 1111111111111111111111111111111111111111 refs/heads/main\0report-status atomic\n"
+    var empty_input: const u8[]
+    try rejected(empty_input)
+    let create = b"0000000000000000000000000000000000000000 1111111111111111111111111111111111111111 refs/heads/main\0 report-status atomic \n"
     var n = try git.encode_packet(git.PacketKind.data, create, wire)
     n += try git.encode_packet(git.PacketKind.flush, b"", wire[n..])
     let header = n

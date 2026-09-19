@@ -30,7 +30,7 @@ def check(binary):
         name = b'refs/heads/fixture'
         for old, new in [(zero, first), (first, second), (second, zero)]:
             command = old + b' ' + new + b' ' + name
-            data = command + b'\0report-status'
+            data = command + b'\0 report-status '
             pack = b'' if new == zero else empty_pack
             wire = f'{len(data) + 4:04x}'.encode() + data + b'0000' + pack
             request.write_bytes(wire)

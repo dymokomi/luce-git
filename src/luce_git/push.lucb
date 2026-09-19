@@ -55,6 +55,7 @@ func capabilities(text: str) -> !:
             error(invalid, "invalid push capability byte")
 
 pub func decode(input: const u8[]) -> Request!:
+    if input.length < 4: error(invalid, "truncated push request")
     if input.length > 68157440: error(invalid, "push request exceeds limit")
     var result = Request(input = input)
     var offset: usize = 0
@@ -75,7 +76,14 @@ pub func decode(input: const u8[]) -> Request!:
         while split < end and input[split] != 0: split += 1
         if result.count == 0:
             if split == end: error(invalid, "missing push capability separator")
-            result.capabilities = (str)input[split + 1..<end]
+            if end - split - 1 > 4096: error(invalid, "push capabilities too large")
+            # Stock send-pack prefixes HTTP capability lists with a space.
+            # Accept boundary SP padding, but still reject empty interior tokens.
+            var cap_start = split + 1
+            var cap_end = end
+            while cap_start < cap_end and input[cap_start] == ' ': cap_start += 1
+            while cap_end > cap_start and input[cap_end - 1] == ' ': cap_end -= 1
+            result.capabilities = (str)input[cap_start..<cap_end]
             try capabilities(result.capabilities)
             end = split
         elif split != end:

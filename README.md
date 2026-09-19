@@ -58,6 +58,18 @@ validation still belong to the unfinished pack reader. Based on the
 [Git pack delta format](https://git-scm.com/docs/gitformat-pack), with independent
 generated packs reconstructed by stock `git index-pack` as the test oracle.
 
+`decode_pack(bytes)` reads complete self-contained SHA-1 packs (versions 2/3),
+checks the trailer checksum and exact object count, decodes zlib entries and
+reconstructs offset/reference deltas, including forward references. The returned
+`Pack` owns its `items`, payloads and IDs: call `close()` and do not copy ownership.
+Limits: 64 MiB input, 4096 objects, 64 MiB cumulative inflated-plus-reconstructed
+bytes, 64 delta levels and 16,777,216 base-search comparisons. Resolution currently
+uses bounded linear searches; indexing is future work. Missing/cyclic bases and
+thin packs requiring external objects fail. This is not yet an ingestion service:
+object semantics, collision rejection, authorization, durable storage, pack writing
+and protocol negotiation remain separate requirements. Tests read real stock-Git
+packs as well as malformed, forward-reference and offset fixtures.
+
 `encode_packet` / `decode_packet` provide binary-safe pkt-line framing with a
 65520-byte total limit, plus flush, delimiter and response-end controls. The
 decoder returns one packet and a consumed count; fields borrow retained input.

@@ -50,6 +50,14 @@ func walk(base: const u8[], delta: const u8[], output: u8[], write: bool) -> usi
     if used != target: error(invalid, "delta result shorter than declared size")
     return used
 
+## Allocation planning only; apply still validates every instruction.
+pub func result_size(base_size: usize, instructions: const u8[]) -> usize!:
+    var at: usize = 0
+    if try size_value(instructions, &at) != base_size: error(invalid, "delta base size mismatch")
+    let size = try size_value(instructions, &at)
+    if size > 67108864: error(invalid, "delta result limit exceeded")
+    return size
+
 ## Validate then apply; errors leave output unchanged. No allocation, recursion or
 ## object lookup. Output must not overlap either input, which must remain stable.
 ## Chain depth, aggregate work and object type/ID belong to the pack resolver.

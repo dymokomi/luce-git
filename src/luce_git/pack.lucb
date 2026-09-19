@@ -1,0 +1,158 @@
+## Owning bounded SHA-1 pack reader. No thin-pack external lookup or disk writes.
+import memory
+import compress
+import crypto_native
+import luce_git.object as object
+import luce_git.delta as delta
+
+pub struct Item:
+    pub var kind: str
+    pub var payload: u8[]
+    pub var id: u8[20]
+    var offset: usize
+    var base_offset: usize
+    var base_id: u8[20]
+    var form: u8
+    var resolved: bool
+    var depth: usize
+
+pub struct Pack:
+    pub var items: Item[]
+
+    pub mutating func close():
+        for i in 0..<self.items.length:
+            if self.items[i].payload.length > 0: free(self.items[i].payload) in memory.heap
+        if self.items.length > 0: free(self.items) in memory.heap
+        var empty: Item[]
+        self.items = empty
+
+func release_bytes(bytes: u8[]):
+    if bytes.length > 0: free(bytes) in memory.heap
+
+func byte(input: const u8[], at: usize*) -> u8!:
+    if *at >= input.length: error(object.invalid, "truncated pack")
+    let value = input[*at]
+    *at += 1
+    return value
+
+func uint32(input: const u8[], at: usize*) -> usize!:
+    var value: usize = 0
+    for i in 0..<4:
+        discard(i)
+        value = (value << 8) | (usize)try byte(input, at)
+    return value
+
+func kind_name(kind: u8) -> str!:
+    if kind == 1: return "commit"
+    if kind == 2: return "tree"
+    if kind == 3: return "blob"
+    if kind == 4: return "tag"
+    error(object.invalid, "invalid full-object pack kind")
+
+func identify(item: Item*) -> !:
+    discard(try object.hash_object(item.kind, item.payload, item.id))
+    item.resolved = true
+
+func resolve(pack: Pack*, total: usize) -> !:
+    var bytes = total
+    var budget: usize = 16777216
+    var unresolved: usize = 0
+    for i in 0..<pack.items.length:
+        if not pack.items[i].resolved: unresolved += 1
+    while unresolved > 0:
+        var progress = false
+        for i in 0..<pack.items.length:
+            let item = &pack.items[i]
+            if item.resolved: continue
+            for j in 0..<pack.items.length:
+                if budget == 0: error(object.invalid, "pack resolution work limit exceeded")
+                budget -= 1
+                let base = &pack.items[j]
+                if not base.resolved: continue
+                let matches = base.offset == item.base_offset if item.form == 6 else crypto_native.equal(base.id, item.base_id)
+                if not matches: continue
+                if base.depth >= 64: error(object.invalid, "pack delta chain too deep")
+                let size = try delta.result_size(base.payload.length, item.payload)
+                if size > 67108864 - bytes: error(object.invalid, "pack expanded byte limit exceeded")
+                var result: u8[]
+                if size > 0: result = try alloc u8[size] in memory.heap
+                errdefer release_bytes(result)
+                discard(try delta.apply(base.payload, item.payload, result))
+                if item.payload.length > 0: free(item.payload) in memory.heap
+                item.payload = result
+                var empty: u8[]
+                result = empty
+                item.kind = base.kind
+                item.depth = base.depth + 1
+                try identify(item)
+                bytes += size
+                unresolved -= 1
+                progress = true
+                break
+        if not progress: error(object.invalid, "missing or cyclic pack delta base (thin packs unsupported)")
+
+## Accept complete self-contained version 2/3 SHA-1 packs. All returned bytes are
+## owned; close exactly once (close itself is idempotent), never copy ownership.
+pub func decode(input: const u8[]) -> Pack!:
+    if input.length < 32 or input.length > 67108864: error(object.invalid, "pack byte limit invalid")
+    let end = input.length - 20
+    var checksum: u8[20]
+    discard(try crypto_native.sha1_digest(input[..<end], checksum))
+    if not crypto_native.equal(checksum, input[end..]): error(object.invalid, "pack checksum mismatch")
+    let wire = input[..<end]
+    if (str)wire[..<4] != "PACK": error(object.invalid, "invalid pack magic")
+    var at: usize = 4
+    let version = try uint32(wire, &at)
+    if version != 2 and version != 3: error(object.invalid, "unsupported pack version")
+    let count = try uint32(wire, &at)
+    if count > 4096: error(object.invalid, "pack object count limit exceeded")
+    var result = Pack()
+    errdefer result.close()
+    if count > 0:
+        result.items = try alloc Item[count] in memory.heap
+        # alloc supplies storage, not initialized Item values. Initialize every
+        # slot before parsing so both resolution and partial-error close are safe.
+        for i in 0..<count: result.items[i] = Item()
+    var total: usize = 0
+    for i in 0..<count:
+        let item = &result.items[i]
+        item.offset = at
+        var value = try byte(wire, &at)
+        item.form = (value >> 4) & 7
+        if item.form == 0 or item.form == 5: error(object.invalid, "reserved pack object type")
+        var size = (usize)(value & 15)
+        var factor: usize = 16
+        while value & 128 != 0:
+            value = try byte(wire, &at)
+            let part = (usize)(value & 127) *? factor else error(object.invalid, "pack size overflow")
+            size = size +? part else error(object.invalid, "pack size overflow")
+            if value & 128 != 0:
+                factor = factor *? 128 else error(object.invalid, "pack size overflow")
+        if size > 67108864 - total: error(object.invalid, "pack inflated byte limit exceeded")
+        if item.form == 6:
+            value = try byte(wire, &at)
+            var distance = (usize)(value & 127)
+            while value & 128 != 0:
+                value = try byte(wire, &at)
+                let bumped = distance +? 1 else error(object.invalid, "pack offset overflow")
+                let scaled = bumped *? 128 else error(object.invalid, "pack offset overflow")
+                distance = scaled +? (usize)(value & 127) else error(object.invalid, "pack offset overflow")
+            if distance == 0 or distance > item.offset: error(object.invalid, "pack base offset invalid")
+            item.base_offset = item.offset - distance
+        elif item.form == 7:
+            for j in 0..<20: item.base_id[j] = try byte(wire, &at)
+        else:
+            item.kind = try kind_name(item.form)
+        let decoded = try compress.decode(wire[at..], (i64)size, allow_trailing = true)
+        defer decoded.release()
+        let payload = try decoded.value().bytes()
+        if payload.length != size: error(object.invalid, "pack object length mismatch")
+        at += (usize)try decoded.value().consumed()
+        if size > 0:
+            item.payload = try alloc u8[size] in memory.heap
+            for j in 0..<size: item.payload[j] = payload[j]
+        total += size
+        if item.form < 5: try identify(item)
+    if at != end: error(object.invalid, "trailing pack entries or bytes")
+    try resolve(&result, total)
+    return result

@@ -1,0 +1,27 @@
+import git
+import files
+import c
+import memory
+
+pub func main(arguments: c.str[]) -> i32!:
+    if arguments.length == 2:
+        let input = try files.read_limit(arguments[1], 67108864)
+        defer free(input) in memory.heap
+        var pack = try git.decode_pack(input)
+        defer pack.close()
+        for i in 0..<pack.items.length:
+            let item = &pack.items[i]
+            var text: u8[40]
+            discard(try git.hex_id(item.id, text))
+            print(f"{item.kind} {(str)text} {item.payload.length}")
+        pack.close()
+        return 0
+    assert(arguments.length == 1)
+    var failed = false
+    var result = git.decode_pack(b"PACK") catch failure:
+        failed = true
+        recover git.Pack()
+    defer result.close()
+    assert(failed)
+    print("PASS pack truncation and empty ownership cleanup")
+    return 0

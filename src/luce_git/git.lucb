@@ -4,6 +4,13 @@ import luce_git.loose as loose
 import interop
 import luce_git.tree as tree
 import luce_git.delta as delta
+import luce_git.pack as pack
+
+pub type Pack = pack.Pack
+pub type PackItem = pack.Item
+
+pub func decode_pack(input: const u8[]) -> Pack!:
+    return try pack.decode(input)
 
 pub func apply_delta(base: const u8[], instructions: const u8[], output: u8[]) -> usize!:
     return try delta.apply(base, instructions, output)

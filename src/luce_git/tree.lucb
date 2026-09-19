@@ -1,0 +1,127 @@
+## Borrowed SHA-1 tree entries and bounded structural validation.
+import memory
+from luce_git.object import invalid
+
+pub struct Entry:
+    pub var mode: str
+    pub var name: str
+    pub var id: const u8[]
+    pub var consumed: usize
+
+func checked(entry: Entry) -> !:
+    if entry.mode != "40000" and entry.mode != "100644" and entry.mode != "100755" and entry.mode != "120000" and entry.mode != "160000":
+        error(invalid, "noncanonical tree mode")
+    if entry.name.length == 0 or entry.name.length > 4096 or entry.name == "." or entry.name == "..":
+        error(invalid, "invalid tree component")
+    for byte in entry.name.bytes:
+        if byte == 0 or byte == '/': error(invalid, "invalid tree component")
+    if entry.name.length == 4:
+        let name = entry.name.bytes
+        if name[0] == '.' and (name[1] == 'g' or name[1] == 'G') and (name[2] == 'i' or name[2] == 'I') and (name[3] == 't' or name[3] == 'T'):
+            error(invalid, "reserved tree component")
+    if entry.id.length != 20: error(invalid, "tree entry requires a SHA-1 ID")
+    var nonzero = false
+    for byte in entry.id:
+        if byte != 0: nonzero = true
+    if not nonzero: error(invalid, "null tree object ID")
+
+pub func decode(input: const u8[]) -> Entry!:
+    var at: usize = 0
+    while at < input.length and input[at] != ' ':
+        if at >= 6: error(invalid, "invalid tree mode")
+        at += 1
+    if at == input.length: error(invalid, "truncated tree mode")
+    let mode = (str)input[..<at]
+    at += 1
+    let start = at
+    while at < input.length and input[at] != 0:
+        if at - start >= 4096: error(invalid, "tree component too long")
+        at += 1
+    if at == input.length: error(invalid, "truncated tree component")
+    let name = (str)input[start..<at]
+    at += 1
+    if input.length - at < 20: error(invalid, "truncated tree object ID")
+    let entry = Entry(mode = mode, name = name, id = input[at..<at + 20], consumed = at + 20)
+    try checked(entry)
+    return entry
+
+## Input and output must not overlap. Rejection leaves output unchanged.
+pub func encode(entry: Entry, output: u8[]) -> usize!:
+    try checked(entry)
+    let size = entry.mode.length + entry.name.length + 22
+    if output.length < size: error(invalid, "tree output too small")
+    var at: usize = 0
+    for byte in entry.mode.bytes:
+        output[at] = byte
+        at += 1
+    output[at] = ' '
+    at += 1
+    for byte in entry.name.bytes:
+        output[at] = byte
+        at += 1
+    output[at] = 0
+    at += 1
+    for byte in entry.id:
+        output[at] = byte
+        at += 1
+    return at
+
+func compare(a: Entry, b: Entry, tree_order: bool) -> i32:
+    let length = a.name.length if a.name.length < b.name.length else b.name.length
+    for i in 0..<length:
+        if a.name.bytes[i] < b.name.bytes[i]: return -1
+        if a.name.bytes[i] > b.name.bytes[i]: return 1
+    let left = a.name.bytes[length] if length < a.name.length else ((u8)'/' if tree_order and a.mode == "40000" else (u8)0)
+    let right = b.name.bytes[length] if length < b.name.length else ((u8)'/' if tree_order and b.mode == "40000" else (u8)0)
+    return -1 if left < right else (1 if left > right else 0)
+
+func sift(names: str[], start: usize, count: usize):
+    var root = start
+    while root < count // 2:
+        var child = root * 2 + 1
+        if child + 1 < count and compare(Entry(name = names[child]), Entry(name = names[child + 1]), false) < 0:
+            child += 1
+        if compare(Entry(name = names[root]), Entry(name = names[child]), false) >= 0: return
+        let saved = names[root]
+        names[root] = names[child]
+        names[child] = saved
+        root = child
+
+## Structural only: referenced object existence/type and checkout safety are separate.
+pub func validate(input: const u8[]) -> usize!:
+    if input.length > 67108864: error(invalid, "tree byte limit exceeded")
+    var at: usize = 0
+    var count: usize = 0
+    var previous: Entry
+    while at < input.length:
+        let entry = try decode(input[at..])
+        if count > 0 and compare(previous, entry, true) >= 0:
+            error(invalid, "tree entries are not strictly ordered")
+        previous = entry
+        count += 1
+        if count > 1048576: error(invalid, "tree entry limit exceeded")
+        at += entry.consumed
+    if count < 2: return count
+    # Name-only heapsort detects nonadjacent file/directory duplicates with
+    # bounded O(n log n) work; Git's directory-as-slash order differs from names.
+    let names = try alloc str[count] in memory.heap
+    defer free(names) in memory.heap
+    at = 0
+    for i in 0..<count:
+        let entry = try decode(input[at..])
+        names[i] = entry.name
+        at += entry.consumed
+    var start = count // 2
+    while start > 0:
+        start -= 1
+        sift(names, start, count)
+    var end = count
+    while end > 1:
+        end -= 1
+        let saved = names[0]
+        names[0] = names[end]
+        names[end] = saved
+        sift(names, 0, end)
+    for i in 1..<count:
+        if names[i - 1] == names[i]: error(invalid, "duplicate tree component")
+    return count

@@ -1,0 +1,39 @@
+import git
+import files
+import memory
+import c
+
+pub func main(arguments: c.str[]) -> i32!:
+    if arguments.length == 2:
+        let wire = try files.read_limit(arguments[1], 67108864)
+        defer free(wire) in memory.heap
+        let count = try git.validate_tree(wire)
+        print(f"{count}")
+        return 0
+    assert(arguments.length == 1)
+    var id: u8[20]
+    id[0] = 1
+    var wire: u8[256]
+    let entry = git.TreeEntry(mode = "100644", name = "file", id = id)
+    let size = try git.encode_tree_entry(entry, wire)
+    assert(try git.validate_tree(wire[..<size]) == 1)
+    let decoded = try git.decode_tree_entry(wire[..<size])
+    assert(decoded.mode == entry.mode and decoded.name == entry.name and decoded.consumed == size)
+    for i in 0..<20: assert(decoded.id[i] == id[i])
+    for end in 1..<size:
+        var failed = false
+        discard(git.validate_tree(wire[..<end]) catch failure:
+            failed = true
+            recover 0)
+        assert(failed)
+    assert(try git.validate_tree(b"") == 0)
+    for name in ["", ".", "..", ".git", ".GiT", "a/b", "a\0b"]:
+        for i in 0..<wire.length: wire[i] = 77
+        var failed = false
+        discard(git.encode_tree_entry(git.TreeEntry(mode = "100644", name = name, id = id), wire) catch failure:
+            failed = true
+            recover 0)
+        assert(failed)
+        for byte in wire: assert(byte == 77)
+    print("PASS tree entry encode/decode, truncation and atomic rejection")
+    return 0

@@ -2,6 +2,18 @@ import luce_git.object as object
 import luce_git.packet as packet
 import luce_git.loose as loose
 import interop
+import luce_git.tree as tree
+
+pub type TreeEntry = tree.Entry
+
+pub func decode_tree_entry(input: const u8[]) -> TreeEntry!:
+    return try tree.decode(input)
+
+pub func encode_tree_entry(entry: TreeEntry, output: u8[]) -> usize!:
+    return try tree.encode(entry, output)
+
+pub func validate_tree(input: const u8[]) -> usize!:
+    return try tree.validate(input)
 
 pub type CompressedObject = loose.Compressed
 

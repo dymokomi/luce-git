@@ -34,6 +34,20 @@ bound decompression, including high-expansion streams. Compression is entirely
 native `luce-compress`, pinned in `bootstrap/COMPRESS`. An expected SHA-1 ID is
 not publisher authentication, collision protection or permission to extract paths.
 
+`encode_tree_entry` / `decode_tree_entry` handle borrowed binary SHA-1 tree entries.
+`validate_tree` checks the complete payload, canonical modes (40000, 100644,
+100755, 120000, 160000), non-null IDs, Git's directory-as-slash ordering and
+duplicate names, including nonadjacent file/directory duplicates. It rejects
+empty/dot/dot-dot/slash/NUL components and case-insensitive `.git`. Limits are
+64 MiB, 1,048,576 entries and 4096 bytes per name. Duplicate detection uses an
+owned array of borrowed names and heapsort (O(n log n) comparisons).
+This structural profile is not full `git fsck`: it does not verify referenced
+objects, platform-specific filename aliases, symlink destinations or extraction
+safety. Call it explicitly after decoding a tree object; loose decoding does not
+implicitly apply semantic policies. Ordering follows
+[Git's tree comparator](https://github.com/git/git/blob/master/tree.c), with
+tests against `git mktree` and hostile structural fixtures.
+
 `encode_packet` / `decode_packet` provide binary-safe pkt-line framing with a
 65520-byte total limit, plus flush, delimiter and response-end controls. The
 decoder returns one packet and a consumed count; fields borrow retained input.

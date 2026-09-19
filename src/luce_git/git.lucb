@@ -7,6 +7,15 @@ import luce_git.delta as delta
 import luce_git.pack as pack
 import luce_git.pack_writer as pack_writer
 import luce_git.refs as refs
+import luce_git.commit as commit
+
+pub type Commit = commit.Commit
+
+pub func decode_commit(input: const u8[]) -> Commit!:
+    return try commit.decode(input)
+
+pub func decode_id(text: str, output: u8[]) -> !:
+    try commit.decode_id(text, output)
 
 pub func valid_ref(name: str) -> bool:
     return refs.valid(name)

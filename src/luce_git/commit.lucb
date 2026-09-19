@@ -1,0 +1,94 @@
+## Original bounded structural parser for SHA-1 commit payloads, not full fsck.
+from luce_git.object import invalid
+import strings
+
+pub let max_parents: usize = 4096
+pub let max_header: usize = 1048576
+
+func nibble(byte: u8) -> u8!:
+    if byte >= '0' and byte <= '9': return byte - '0'
+    if byte >= 'a' and byte <= 'f': return byte - 'a' + 10
+    if byte >= 'A' and byte <= 'F': return byte - 'A' + 10
+    error(invalid, "invalid hexadecimal Git identity")
+
+## Validation precedes writes; accepts either hex case, exactly 40 input bytes.
+pub func decode_id(text: str, output: u8[]) -> !:
+    if text.length != 40 or output.length != 20: error(invalid, "Git identity requires 40 hex and 20 binary bytes")
+    var decoded: u8[20]
+    for i in 0..<(usize)20:
+        decoded[i] = (try nibble(text.bytes[i * 2]) << 4) | try nibble(text.bytes[i * 2 + 1])
+    for i in 0..<(usize)20: output[i] = decoded[i]
+
+func require_id(text: str) -> !:
+    var decoded: u8[20]
+    try decode_id(text, decoded)
+    for byte in decoded:
+        if byte != 0: return
+    error(invalid, "null commit object identity")
+
+pub struct Commit:
+    ## Borrowed hex tree ID and raw identity/message fields; input must stay intact.
+    pub var tree: str
+    pub var author: str
+    pub var committer: str
+    pub var message: const u8[]
+    pub var parent_count: usize
+    var parents: const u8[]
+
+    ## O(1), since validated parent lines have a fixed 48-byte representation.
+    pub func parent(index: usize) -> str!:
+        if index >= self.parent_count: error(invalid, "commit parent index out of bounds")
+        let at = index * 48 + 7
+        return (str)self.parents[at..<at + 40]
+
+func line(input: const u8[], at: usize*) -> str!:
+    let start = *at
+    while *at < input.length:
+        if *at >= max_header or *at - start > 65536: error(invalid, "commit header exceeds limit")
+        let byte = input[*at]
+        *at += 1
+        if byte == '\n': return (str)input[start..<*at - 1]
+        if byte == 0 or byte == '\r': error(invalid, "invalid byte in commit header")
+    error(invalid, "truncated commit header")
+
+pub func decode(input: const u8[]) -> Commit!:
+    if input.length > 67108864: error(invalid, "commit payload exceeds 64 MiB")
+    var at: usize = 0
+    let tree_line = try line(input, &at)
+    if tree_line.length != 45 or not strings.starts_with(tree_line, "tree "): error(invalid, "missing commit tree")
+    let tree = (str)tree_line.bytes[5..]
+    try require_id(tree)
+    let parent_start = at
+    var parent_end = at
+    var count: usize = 0
+    var current = try line(input, &at)
+    while strings.starts_with(current, "parent "):
+        if current.length != 47 or count >= max_parents: error(invalid, "invalid commit parent")
+        try require_id((str)current.bytes[7..])
+        count += 1
+        parent_end = at
+        current = try line(input, &at)
+    if not strings.starts_with(current, "author ") or current.length <= 7: error(invalid, "missing commit author")
+    let author = (str)current.bytes[7..]
+    current = try line(input, &at)
+    if not strings.starts_with(current, "committer ") or current.length <= 10: error(invalid, "missing commit committer")
+    let committer = (str)current.bytes[10..]
+    var extension = false
+    while true:
+        current = try line(input, &at)
+        if current.length == 0: break
+        if current.bytes[0] == ' ':
+            if not extension: error(invalid, "orphan commit header continuation")
+            continue
+        var split: usize = 0
+        while split < current.length and current.bytes[split] != ' ':
+            let byte = current.bytes[split]
+            if byte < 33 or byte > 126: error(invalid, "invalid commit header key")
+            split += 1
+        if split == 0 or split == current.length: error(invalid, "invalid commit extension header")
+        let key = (str)current.bytes[..<split]
+        if key == "tree" or key == "parent" or key == "author" or key == "committer":
+            error(invalid, "duplicate or misplaced commit header")
+        extension = true
+    return Commit(tree = tree, author = author, committer = committer, message = input[at..], parent_count = count,
+        parents = input[parent_start..<parent_end])

@@ -12,6 +12,7 @@ from delta_oracle import check as check_delta
 from pack_oracle import check as check_pack
 from pack_writer_oracle import check as check_pack_writer
 from refs_oracle import check as check_refs
+from commit_oracle import check as check_commit
 
 
 def main():
@@ -41,6 +42,7 @@ def main():
         if name == 'pack-tests': check_pack(output / name)
         if name == 'pack-writer-tests': check_pack_writer(output / name)
         if name == 'refs-tests': check_refs(output / name)
+        if name == 'commit-tests': check_commit(output / name)
     print("PASS AddressSanitizer + UndefinedBehaviorSanitizer", flush=True)
 
 

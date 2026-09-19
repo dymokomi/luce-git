@@ -88,6 +88,30 @@ namespace restrictions, conflicting prefixes, aliases and atomic ref updates are
 still required. Differential tests cover fixed cases, ASCII bytes, Unicode and
 deterministic generated names against `git check-ref-format`.
 
+`decode_commit(payload)` parses bounded SHA-1 commit structure without allocation:
+one tree ID, contiguous parent IDs, author and committer headers, optional extension
+headers with space-prefixed continuations, a required empty separator line, and
+an unchanged binary message. Its fields borrow the retained, unmodified input;
+`parent(index)` retrieves a validated parent's hexadecimal ID in constant time.
+`decode_id(text, output)` converts either hex case to exactly 20 bytes and leaves
+output unchanged on validation failure. Commit tree/parent IDs cannot be all zero.
+
+Limits are 64 MiB per payload, 1 MiB of headers, 65536 bytes per header line and
+4096 parents. NUL/CR header bytes, repeated/misplaced structural headers, orphan
+continuations and missing separators are rejected. Message bytes remain opaque,
+including NUL/non-UTF-8 bytes. Author/committer fields are nonempty raw values:
+this is **not** identity/date validation, full `git fsck`, object graph closure,
+signature verification, publisher authorization or release authenticity. Extra
+headers are structurally parsed, not semantically validated. A parsed commit must
+not be admitted to a public repository solely on this result.
+
+The original implementation follows the documented
+[Git object structure](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects) and
+[header folding](https://git-scm.com/docs/gitformat-signature). Tests compare native
+tree/parent extraction with actual `commit-tree`, `rev-list` and `rev-parse` output,
+then exercise folded headers, binary messages, every pre-message truncation and
+the complete parent-count boundary. Stock Git is used only in these test oracles.
+
 `encode_packet` / `decode_packet` provide binary-safe pkt-line framing with a
 65520-byte total limit, plus flush, delimiter and response-end controls. The
 decoder returns one packet and a consumed count; fields borrow retained input.

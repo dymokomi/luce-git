@@ -1,0 +1,37 @@
+import git
+import files
+import memory
+import c
+
+pub func main(arguments: c.str[]) -> i32!:
+    if arguments.length == 2:
+        let wire = try files.read_limit(arguments[1], 67108864)
+        defer free(wire) in memory.heap
+        let commit = try git.decode_commit(wire)
+        print(commit.tree)
+        print(f"{commit.parent_count}")
+        for i in 0..<commit.parent_count: print(try commit.parent(i))
+        print(commit.author)
+        print(commit.committer)
+        print(f"{commit.message.length}")
+        return 0
+    var id: u8[20]
+    try git.decode_id("0123456789abcdef0123456789ABCDEF01234567", id)
+    var encoded: u8[40]
+    discard(try git.hex_id(id, encoded))
+    assert((str)encoded == "0123456789abcdef0123456789abcdef01234567")
+    for text in ["", "0", "000000000000000000000000000000000000000g", "00000000000000000000000000000000000000000"]:
+        for i in 0..<(usize)20: id[i] = 77
+        var rejected = false
+        git.decode_id(text, id) catch failure: rejected = true
+        assert(rejected)
+        for byte in id: assert(byte == 77)
+    let commit = try git.decode_commit(b"tree 0123456789abcdef0123456789abcdef01234567\nauthor A <a@b> 1 +0000\ncommitter C <c@d> 2 -0100\n\nmessage\0bytes")
+    assert(commit.parent_count == 0 and commit.message.length == 13)
+    var rejected = false
+    discard(commit.parent(0) catch failure:
+        rejected = true
+        recover "")
+    assert(rejected)
+    print("PASS commit structure, borrowed message and atomic ID decode")
+    return 0

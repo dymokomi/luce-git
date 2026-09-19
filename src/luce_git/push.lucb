@@ -1,0 +1,99 @@
+## Bounded SHA-1 receive-pack command framing, not authorization or graph validation.
+import luce_git.packet as packet
+import luce_git.commit as commit
+import luce_git.refs as refs
+from luce_git.object import invalid
+
+pub struct Command:
+    pub var old_id: str
+    pub var new_id: str
+    pub var name: str
+
+func command(bytes: const u8[]) -> Command!:
+    if bytes.length < 83 or bytes[40] != ' ' or bytes[81] != ' ':
+        error(invalid, "invalid push command")
+    let old_id = (str)bytes[..<40]
+    let new_id = (str)bytes[41..<81]
+    var old: u8[20]
+    var target: u8[20]
+    try commit.decode_id(old_id, old)
+    try commit.decode_id(new_id, target)
+    var nonzero = false
+    for i in 0..<(usize)20:
+        if old[i] != 0 or target[i] != 0: nonzero = true
+    if not nonzero: error(invalid, "push command has two null identities")
+    let name = (str)bytes[82..]
+    if not refs.valid(name): error(invalid, "invalid push reference")
+    return Command(old_id = old_id, new_id = new_id, name = name)
+
+pub struct Request:
+    ## All views borrow input. No pack integrity or capability negotiation implied.
+    pub var capabilities: str
+    pub var pack: const u8[]
+    pub var count: usize
+    var input: const u8[]
+    var starts: usize[64]
+    var ends: usize[64]
+
+    pub func at(index: usize) -> Command!:
+        if index >= self.count: error(invalid, "push command index out of bounds")
+        return try command(self.input[self.starts[index]..<self.ends[index]])
+
+func capabilities(text: str) -> !:
+    if text.length > 4096: error(invalid, "push capabilities too large")
+    var start: usize = 0
+    for i in 0..<text.length + 1:
+        if i == text.length or text.bytes[i] == ' ':
+            if i == start:
+                if text.length == 0: return
+                error(invalid, "empty push capability")
+            let token = (str)text.bytes[start..<i]
+            # Additional packet sections are not part of this parser's contract.
+            if token == "push-options": error(invalid, "push options are unsupported")
+            start = i + 1
+        elif text.bytes[i] < 33 or text.bytes[i] > 126:
+            error(invalid, "invalid push capability byte")
+
+pub func decode(input: const u8[]) -> Request!:
+    if input.length > 68157440: error(invalid, "push request exceeds limit")
+    var result = Request(input = input)
+    var offset: usize = 0
+    var needs_pack = false
+    while true:
+        let item = try packet.decode(input[offset..])
+        if item.kind == packet.Kind.flush:
+            offset += item.consumed
+            break
+        if item.kind != packet.Kind.data or result.count >= 64:
+            error(invalid, "invalid push command framing or count")
+        let start = offset + 4
+        offset += item.consumed
+        if offset > 1048576: error(invalid, "push command section exceeds limit")
+        var end = offset
+        if end > start and input[end - 1] == '\n': end -= 1
+        var split = start
+        while split < end and input[split] != 0: split += 1
+        if result.count == 0:
+            if split == end: error(invalid, "missing push capability separator")
+            result.capabilities = (str)input[split + 1..<end]
+            try capabilities(result.capabilities)
+            end = split
+        elif split != end:
+            error(invalid, "capabilities after first push command")
+        let parsed = try command(input[start..<end])
+        for i in 0..<result.count:
+            if (try result.at(i)).name == parsed.name: error(invalid, "duplicate push reference")
+        result.starts[result.count] = start
+        result.ends[result.count] = end
+        result.count += 1
+        for byte in parsed.new_id.bytes:
+            if byte != '0': needs_pack = true
+    if result.count == 0: error(invalid, "empty push command list")
+    result.pack = input[offset..]
+    if result.pack.length > 67108864: error(invalid, "push pack exceeds limit")
+    if needs_pack:
+        if result.pack.length < 32: error(invalid, "missing push pack")
+        if (str)result.pack[..<4] != "PACK": error(invalid, "invalid push pack prefix")
+    elif result.pack.length != 0:
+        error(invalid, "pack supplied for delete-only push")
+    return result

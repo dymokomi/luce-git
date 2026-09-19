@@ -9,6 +9,13 @@ import luce_git.pack_writer as pack_writer
 import luce_git.refs as refs
 import luce_git.commit as commit
 import luce_git.tag as tag
+import luce_git.push as push
+
+pub type PushRequest = push.Request
+pub type PushCommand = push.Command
+
+pub func decode_push(input: const u8[]) -> PushRequest!:
+    return try push.decode(input)
 
 pub type Tag = tag.Tag
 

@@ -135,6 +135,23 @@ packets fail without changing input. Encoding uses lowercase hex and requires
 non-overlapping input/output; validation failures leave output unchanged.
 Control-packet legality depends on the negotiated protocol and is the caller's
 responsibility. This is framing, not an implementation of fetch/push negotiation.
+
+`decode_push` parses the SHA-1 receive-pack command section into a borrowed
+`PushRequest` with up to 64 commands (`at(index)`), first-packet capabilities,
+and the remaining pack bytes. It requires a flush, valid IDs/ref names, unique
+refs and at least one non-null ID per command. Limits are 1 MiB of command data,
+4096 capability bytes and 64 MiB of pack data. Optional trailing LF is removed
+from command packets. Delete-only requests cannot carry a pack; create/update
+requests must carry at least a 32-byte PACK-prefixed payload, including empty packs.
+The caller must still fully decode/verify that pack: this parser does not check
+its checksum or graph. Shallow updates, push certificates, push-options sections
+and delimiter/response-end packets are rejected. Other capability tokens are
+returned, **not negotiated or authorized**. No storage, ref update, ancestry,
+authentication or HTTP endpoint is performed here.
+Tests cover truncations, duplicate refs, command/capability bounds, unsupported
+forms and requests actually applied by stock Git receive-pack for create/update/
+delete. The wire contract follows [Git's pack protocol](https://git-scm.com/docs/gitprotocol-pack).
+
 Based on [Git's common protocol](https://git-scm.com/docs/protocol-common) and
 [protocol v2](https://git-scm.com/docs/gitprotocol-v2).
 

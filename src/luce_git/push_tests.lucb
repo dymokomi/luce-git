@@ -1,0 +1,99 @@
+import git
+import files
+import memory
+import c
+
+func rejected(wire: const u8[]) -> !:
+    var failed = false
+    discard(git.decode_push(wire) catch failure:
+        assert(failure.code == git.invalid)
+        failed = true
+        recover git.PushRequest())
+    assert(failed)
+
+pub func main(arguments: str[]) -> i32!:
+    if arguments.length == 2:
+        let input = try files.read_limit((c.str)arguments[1], 68157440)
+        defer free(input) in memory.heap
+        let request = try git.decode_push(input)
+        print(f"{request.count}")
+        for i in 0..<request.count:
+            let item = try request.at(i)
+            print(f"{item.old_id} {item.new_id} {item.name}")
+        print(request.capabilities)
+        print(f"{request.pack.length}")
+        return 0
+    var wire: u8[65536]
+    let create = b"0000000000000000000000000000000000000000 1111111111111111111111111111111111111111 refs/heads/main\0report-status atomic\n"
+    var n = try git.encode_packet(git.PacketKind.data, create, wire)
+    n += try git.encode_packet(git.PacketKind.flush, b"", wire[n..])
+    let header = n
+    # A native empty pack is structurally valid even when target lookup is pending.
+    var empty: git.Object[1]
+    n += try git.encode_pack(empty[..<0], wire[n..])
+    let parsed = try git.decode_push(wire[..<n])
+    assert(parsed.count == 1 and parsed.capabilities == "report-status atomic")
+    assert(parsed.pack.length == 32)
+    assert((try parsed.at(0)).name == "refs/heads/main")
+    assert((try parsed.at(0)).new_id == "1111111111111111111111111111111111111111")
+    for i in 0..<n: try rejected(wire[..<i])
+    var bounds = false
+    discard(parsed.at(1) catch:
+        bounds = true
+        recover git.PushCommand())
+    assert(bounds)
+    wire[header] = 'X'
+    try rejected(wire[..<n])
+    # Exact command bound and duplicate names without a second capability field.
+    let deletion = b"1111111111111111111111111111111111111111 0000000000000000000000000000000000000000 refs/heads/main\0report-status"
+    n = 0
+    for i in 0..<(usize)65:
+        var line: u8[256]
+        let suffix = "\0report-status" if i == 0 else ""
+        let text = try format(line, f"1111111111111111111111111111111111111111 0000000000000000000000000000000000000000 refs/heads/b{i}{suffix}")
+        n += try git.encode_packet(git.PacketKind.data, text.bytes, wire[n..])
+        if i == 63:
+            discard(try git.encode_packet(git.PacketKind.flush, b"", wire[n..]))
+            let many = try git.decode_push(wire[..<n + 4])
+            assert(many.count == 64 and (try many.at(63)).name == "refs/heads/b63")
+    n += try git.encode_packet(git.PacketKind.flush, b"", wire[n..])
+    try rejected(wire[..<n])
+    n = try git.encode_packet(git.PacketKind.data, deletion, wire)
+    n += try git.encode_packet(git.PacketKind.data, b"1111111111111111111111111111111111111111 0000000000000000000000000000000000000000 refs/heads/main", wire[n..])
+    n += try git.encode_packet(git.PacketKind.flush, b"", wire[n..])
+    try rejected(wire[..<n])
+    n = try git.encode_packet(git.PacketKind.data, deletion, wire)
+    n += try git.encode_packet(git.PacketKind.flush, b"", wire[n..])
+    assert((try git.decode_push(wire[..<n])).pack.length == 0)
+    wire[n] = 'x'
+    try rejected(wire[..<n + 1])
+    for command in [
+        b"0000000000000000000000000000000000000000 0000000000000000000000000000000000000000 refs/heads/x\0",
+        b"1111111111111111111111111111111111111111 0000000000000000000000000000000000000000 refs/heads/x",
+        b"1111111111111111111111111111111111111111 0000000000000000000000000000000000000000 refs/heads/../x\0",
+        b"1111111111111111111111111111111111111111 0000000000000000000000000000000000000000 refs/heads/x\0push-options",
+        b"1111111111111111111111111111111111111111 0000000000000000000000000000000000000000 refs/heads/x\0atomic  report-status",
+        b"shallow 1111111111111111111111111111111111111111",
+        b"push-cert\0report-status\n"]:
+        n = try git.encode_packet(git.PacketKind.data, command, wire)
+        n += try git.encode_packet(git.PacketKind.flush, b"", wire[n..])
+        try rejected(wire[..<n])
+    try rejected(b"0000")
+    try rejected(b"0001")
+    try rejected(b"0002")
+    var oversized: u8[4300]
+    let prefix = b"1111111111111111111111111111111111111111 0000000000000000000000000000000000000000 refs/heads/main\0"
+    for i in 0..<prefix.length: oversized[i] = prefix[i]
+    for i in prefix.length..<oversized.length: oversized[i] = 'a'
+    n = try git.encode_packet(git.PacketKind.data, oversized[..<prefix.length + 4096], wire)
+    n += try git.encode_packet(git.PacketKind.flush, b"", wire[n..])
+    assert((try git.decode_push(wire[..<n])).capabilities.length == 4096)
+    n = try git.encode_packet(git.PacketKind.data, oversized[..<prefix.length + 4097], wire)
+    n += try git.encode_packet(git.PacketKind.flush, b"", wire[n..])
+    try rejected(wire[..<n])
+    n = try git.encode_packet(git.PacketKind.data, deletion, wire)
+    n += try git.encode_packet(git.PacketKind.data, deletion, wire[n..])
+    n += try git.encode_packet(git.PacketKind.flush, b"", wire[n..])
+    try rejected(wire[..<n])
+    print("PASS push command framing, truncation, deletion, pack boundary and unsupported forms")
+    return 0

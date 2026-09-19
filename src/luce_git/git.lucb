@@ -10,6 +10,12 @@ import luce_git.refs as refs
 import luce_git.commit as commit
 import luce_git.tag as tag
 import luce_git.push as push
+import luce_git.fetch as fetch
+
+pub type FetchRequest = fetch.Request
+
+pub func decode_fetch(input: const u8[]) -> FetchRequest!:
+    return try fetch.decode(input)
 
 pub type PushRequest = push.Request
 pub type PushCommand = push.Command

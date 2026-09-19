@@ -15,6 +15,7 @@ from refs_oracle import check as check_refs
 from commit_oracle import check as check_commit
 from tag_oracle import check as check_tag
 from push_oracle import check as check_push
+from fetch_oracle import check as check_fetch
 
 
 def main():
@@ -47,6 +48,7 @@ def main():
         if name == 'commit-tests': check_commit(output / name)
         if name == 'tag-tests': check_tag(output / name)
         if name == 'push-tests': check_push(output / name)
+        if name == 'fetch-tests': check_fetch(output / name)
     print("PASS AddressSanitizer + UndefinedBehaviorSanitizer", flush=True)
 
 

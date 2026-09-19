@@ -1,0 +1,91 @@
+## Bounded stateless SHA-1 upload-pack request, without shallow/filter extensions.
+import luce_git.packet as packet
+import luce_git.commit as commit
+from luce_git.object import invalid
+
+pub struct Request:
+    ## Views borrow unchanged input. Wants still require repository authorization.
+    pub var capabilities: str
+    pub var wants: usize
+    pub var haves: usize
+    pub var done: bool
+    var input: const u8[]
+    var want_offsets: usize[1024]
+    var have_offsets: usize[4096]
+
+    pub func want(index: usize) -> str!:
+        if index >= self.wants: error(invalid, "fetch want index out of bounds")
+        let start = self.want_offsets[index]
+        return (str)self.input[start..<start + 40]
+
+    pub func have(index: usize) -> str!:
+        if index >= self.haves: error(invalid, "fetch have index out of bounds")
+        let start = self.have_offsets[index]
+        return (str)self.input[start..<start + 40]
+
+func identity(text: str) -> !:
+    var id: u8[20]
+    try commit.decode_id(text, id)
+    for byte in id:
+        if byte != 0: return
+    error(invalid, "null fetch identity")
+
+func capabilities(text: str) -> !:
+    if text.length == 0 or text.length > 4096: error(invalid, "invalid fetch capability size")
+    var start: usize = 0
+    for i in 0..<text.length + 1:
+        if i == text.length or text.bytes[i] == ' ':
+            if i == start: error(invalid, "empty fetch capability")
+            start = i + 1
+        elif text.bytes[i] < 33 or text.bytes[i] > 126:
+            error(invalid, "invalid fetch capability byte")
+
+## Accept one HTTP negotiation round: wants, flush, haves, flush OR done.
+## A want-only round ending at its flush is valid; a bare flush means no wants.
+## Repeated IDs are legal. Capability negotiation is the caller's responsibility.
+pub func decode(input: const u8[]) -> Request!:
+    if input.length < 4 or input.length > 1048576: error(invalid, "invalid fetch request size")
+    var result = Request(input = input)
+    var offset: usize = 0
+    var wants_finished = false
+    while offset < input.length:
+        let item = try packet.decode(input[offset..])
+        let start = offset + 4
+        offset += item.consumed
+        if item.kind == packet.Kind.flush:
+            if not wants_finished:
+                wants_finished = true
+                if result.wants == 0 and offset != input.length:
+                    error(invalid, "data after empty fetch request")
+                if offset == input.length: return result
+                continue
+            if offset != input.length: error(invalid, "data after fetch round flush")
+            return result
+        if item.kind != packet.Kind.data: error(invalid, "invalid fetch control packet")
+        var end = offset
+        if end > start and input[end - 1] == '\n': end -= 1
+        let line = (str)input[start..<end]
+        if wants_finished:
+            if line == "done":
+                if offset != input.length: error(invalid, "data after fetch done")
+                result.done = true
+                return result
+            if line.length != 45 or (str)line.bytes[..<5] != "have ":
+                error(invalid, "invalid fetch have command")
+            if result.haves >= 4096: error(invalid, "fetch have limit exceeded")
+            try identity((str)line.bytes[5..])
+            result.have_offsets[result.haves] = start + 5
+            result.haves += 1
+        else:
+            if line.length < 45 or (str)line.bytes[..<5] != "want ":
+                error(invalid, "invalid fetch want command")
+            if result.wants >= 1024: error(invalid, "fetch want limit exceeded")
+            try identity((str)line.bytes[5..<45])
+            if line.length > 45:
+                if result.wants != 0 or line.bytes[45] != ' ':
+                    error(invalid, "fetch capabilities outside first want")
+                result.capabilities = (str)line.bytes[46..]
+                try capabilities(result.capabilities)
+            result.want_offsets[result.wants] = start + 5
+            result.wants += 1
+    error(invalid, "unterminated fetch request")

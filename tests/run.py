@@ -14,11 +14,13 @@ from refs_oracle import check as check_refs
 from commit_oracle import check as check_commit
 from tag_oracle import check as check_tag
 from push_oracle import check as check_push
+from fetch_oracle import check as check_fetch
 
 ROOT = Path(__file__).resolve().parents[1]
 MODES = {f"native{i}": ["--native", "--opt", str(i)] for i in range(4)}
 MODES.update({"c": ["--backend=c"], "c-release": ["--backend=c", "--release"]})
 SOURCES = [("src/luce_git/git_tests.lucb", "git-tests"),
+           ("src/luce_git/fetch_tests.lucb", "fetch-tests"),
            ("src/luce_git/push_tests.lucb", "push-tests"),
            ("src/luce_git/tag_tests.lucb", "tag-tests"),
            ("src/luce_git/commit_tests.lucb", "commit-tests"),
@@ -62,6 +64,7 @@ def main():
             if name == 'commit-tests': check_commit(output / name)
             if name == 'tag-tests': check_tag(output / name)
             if name == 'push-tests': check_push(output / name)
+            if name == 'fetch-tests': check_fetch(output / name)
         print(f"PASS {mode}", flush=True)
     print("PASS all selected compiler modes", flush=True)
 

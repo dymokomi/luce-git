@@ -144,6 +144,19 @@ non-overlapping input/output; validation failures leave output unchanged.
 Control-packet legality depends on the negotiated protocol and is the caller's
 responsibility. This is framing, not an implementation of fetch/push negotiation.
 
+`decode_fetch` parses one stateless SHA-1 upload-pack negotiation round into a
+borrowed `FetchRequest`: `want(index)`, `have(index)`, counts, first-want
+capabilities, and `done`. Limits are 1 MiB input, 1024 wants, 4096 haves and
+4096 capability bytes. Optional packet LF and repeated IDs are accepted;
+case-insensitive nonzero IDs are validated. Wants end with flush; haves end with
+flush or done. A want-only round and bare no-work flush are supported. Trailing
+bytes, misplaced capabilities, unsupported control packets and shallow/deepen/
+filter commands fail. This is framing, not capability negotiation, advertised-ID
+authorization, ACK selection or pack generation. The server must enforce those
+separately. Tests include a real stock-Git upload-pack response, strict index-pack
+verification, malformed packets and exact limits. See the
+[Git pack protocol](https://git-scm.com/docs/gitprotocol-pack).
+
 `decode_push` parses the SHA-1 receive-pack command section into a borrowed
 `PushRequest` with up to 64 commands (`at(index)`), first-packet capabilities,
 and the remaining pack bytes. It requires a flush, valid IDs/ref names, unique

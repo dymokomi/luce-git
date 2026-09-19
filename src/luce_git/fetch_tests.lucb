@@ -1,0 +1,36 @@
+import git
+import files
+import memory
+import c
+
+pub func main(arguments: str[]) -> i32!:
+    if arguments.length == 2:
+        let input = try files.read_limit((c.str)arguments[1], 1048577)
+        defer free(input) in memory.heap
+        let request = try git.decode_fetch(input)
+        print(f"{request.wants} {request.haves}")
+        print("done" if request.done else "round")
+        print(request.capabilities)
+        for i in 0..<request.wants: print(try request.want(i))
+        for i in 0..<request.haves: print(try request.have(i))
+        return 0
+    var empty: const u8[]
+    var failed = false
+    discard(git.decode_fetch(empty) catch:
+        failed = true
+        recover git.FetchRequest())
+    assert(failed)
+    let request = try git.decode_fetch(b"0000")
+    assert(request.wants == 0 and not request.done)
+    failed = false
+    discard(request.want(0) catch:
+        failed = true
+        recover "")
+    assert(failed)
+    failed = false
+    discard(request.have(0) catch:
+        failed = true
+        recover "")
+    assert(failed)
+    print("PASS fetch empty input, flush and accessor bounds")
+    return 0

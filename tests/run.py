@@ -12,11 +12,13 @@ from pack_oracle import check as check_pack
 from pack_writer_oracle import check as check_pack_writer
 from refs_oracle import check as check_refs
 from commit_oracle import check as check_commit
+from tag_oracle import check as check_tag
 
 ROOT = Path(__file__).resolve().parents[1]
 MODES = {f"native{i}": ["--native", "--opt", str(i)] for i in range(4)}
 MODES.update({"c": ["--backend=c"], "c-release": ["--backend=c", "--release"]})
 SOURCES = [("src/luce_git/git_tests.lucb", "git-tests"),
+           ("src/luce_git/tag_tests.lucb", "tag-tests"),
            ("src/luce_git/commit_tests.lucb", "commit-tests"),
            ("src/luce_git/refs_tests.lucb", "refs-tests"),
            ("src/luce_git/pack_writer_tests.lucb", "pack-writer-tests"),
@@ -56,6 +58,7 @@ def main():
             if name == 'pack-writer-tests': check_pack_writer(output / name)
             if name == 'refs-tests': check_refs(output / name)
             if name == 'commit-tests': check_commit(output / name)
+            if name == 'tag-tests': check_tag(output / name)
         print(f"PASS {mode}", flush=True)
     print("PASS all selected compiler modes", flush=True)
 

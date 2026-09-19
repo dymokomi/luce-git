@@ -112,6 +112,20 @@ tree/parent extraction with actual `commit-tree`, `rev-list` and `rev-parse` out
 then exercise folded headers, binary messages, every pre-message truncation and
 the complete parent-count boundary. Stock Git is used only in these test oracles.
 
+`decode_tag(payload)` parses annotated tag structure: a nonzero hexadecimal
+object ID, declared target kind (blob/tree/commit/tag), nonempty tag label,
+optional nonempty tagger, required empty separator and unchanged binary message.
+Returned fields borrow retained, unmodified input. Historical tags without a
+tagger are accepted; additional/folded tag headers are not supported. Limits are
+64 MiB payload, 1 MiB header region and 65536 bytes per header line; NUL/CR header
+bytes and malformed ordering are rejected. The tag label and raw tagger are not
+validated as a ref name or identity/date. Embedded signature text stays in the
+message and is not verified. Target existence, actual type, graph closure and
+signature/publisher trust must be checked separately before publication.
+Tests extract stock-Git annotated tags targeting each of the four object kinds,
+including nested tags, and cover every header truncation, missing/repeated
+headers, binary/signature messages and bounds. No Git executable is used at runtime.
+
 `encode_packet` / `decode_packet` provide binary-safe pkt-line framing with a
 65520-byte total limit, plus flush, delimiter and response-end controls. The
 decoder returns one packet and a consumed count; fields borrow retained input.

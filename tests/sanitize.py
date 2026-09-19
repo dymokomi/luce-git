@@ -13,6 +13,7 @@ from pack_oracle import check as check_pack
 from pack_writer_oracle import check as check_pack_writer
 from refs_oracle import check as check_refs
 from commit_oracle import check as check_commit
+from tag_oracle import check as check_tag
 
 
 def main():
@@ -43,6 +44,7 @@ def main():
         if name == 'pack-writer-tests': check_pack_writer(output / name)
         if name == 'refs-tests': check_refs(output / name)
         if name == 'commit-tests': check_commit(output / name)
+        if name == 'tag-tests': check_tag(output / name)
     print("PASS AddressSanitizer + UndefinedBehaviorSanitizer", flush=True)
 
 

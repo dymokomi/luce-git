@@ -1,0 +1,23 @@
+import git
+import files
+import memory
+import c
+
+pub func main(arguments: c.str[]) -> i32!:
+    if arguments.length == 2:
+        let wire = try files.read_limit(arguments[1], 67108864)
+        defer free(wire) in memory.heap
+        let tag = try git.decode_tag(wire)
+        print(tag.object)
+        print(tag.kind)
+        print(tag.name)
+        print(tag.tagger)
+        print(f"{tag.message.length}")
+        return 0
+    let tag = try git.decode_tag(b"object 0123456789abcdef0123456789abcdef01234567\ntype tag\ntag v1\ntagger A <a@b> 1 +0000\n\nmessage\0bytes")
+    assert(tag.kind == "tag" and tag.name == "v1" and tag.tagger == "A <a@b> 1 +0000")
+    assert((str)tag.message == "message\0bytes")
+    let historical = try git.decode_tag(b"object 0123456789abcdef0123456789abcdef01234567\ntype blob\ntag old\n\n")
+    assert(historical.tagger == "" and historical.message.length == 0)
+    print("PASS annotated tag structure, historical tagger omission and binary message")
+    return 0

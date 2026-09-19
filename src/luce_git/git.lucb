@@ -8,6 +8,12 @@ import luce_git.pack as pack
 import luce_git.pack_writer as pack_writer
 import luce_git.refs as refs
 import luce_git.commit as commit
+import luce_git.tag as tag
+
+pub type Tag = tag.Tag
+
+pub func decode_tag(input: const u8[]) -> Tag!:
+    return try tag.decode(input)
 
 pub type Commit = commit.Commit
 

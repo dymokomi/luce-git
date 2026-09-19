@@ -1,0 +1,53 @@
+## Bounded annotated-tag structure, not tagger or signature verification.
+from luce_git.object import invalid
+from luce_git.commit import decode_id
+import strings
+
+pub struct Tag:
+    pub var object: str
+    pub var kind: str
+    pub var name: str
+    pub var tagger: str
+    pub var message: const u8[]
+
+func line(input: const u8[], at: usize*) -> str!:
+    let start = *at
+    while *at < input.length:
+        if *at >= 1048576 or *at - start > 65536: error(invalid, "tag header exceeds limit")
+        let byte = input[*at]
+        *at += 1
+        if byte == '\n': return (str)input[start..<*at - 1]
+        if byte == 0 or byte == '\r': error(invalid, "invalid byte in tag header")
+    error(invalid, "truncated tag header")
+
+## All views borrow retained, unmodified input. Tagger is optional for historical
+## tags; if present it must be nonempty. Extra headers are not supported.
+pub func decode(input: const u8[]) -> Tag!:
+    if input.length > 67108864: error(invalid, "tag payload exceeds 64 MiB")
+    var at: usize = 0
+    let object_line = try line(input, &at)
+    if object_line.length != 47 or not strings.starts_with(object_line, "object "):
+        error(invalid, "missing tag target")
+    let object = (str)object_line.bytes[7..]
+    var id: u8[20]
+    try decode_id(object, id)
+    var nonzero = false
+    for byte in id:
+        if byte != 0: nonzero = true
+    if not nonzero: error(invalid, "null tag target")
+    let type_line = try line(input, &at)
+    if not strings.starts_with(type_line, "type "): error(invalid, "missing tag target type")
+    let kind = (str)type_line.bytes[5..]
+    if kind != "blob" and kind != "tree" and kind != "commit" and kind != "tag":
+        error(invalid, "unknown tag target type")
+    let name_line = try line(input, &at)
+    if not strings.starts_with(name_line, "tag ") or name_line.length <= 4: error(invalid, "missing tag name")
+    let name = (str)name_line.bytes[4..]
+    var tagger = ""
+    var current = try line(input, &at)
+    if strings.starts_with(current, "tagger "):
+        if current.length <= 7: error(invalid, "empty tagger")
+        tagger = (str)current.bytes[7..]
+        current = try line(input, &at)
+    if current.length != 0: error(invalid, "missing tag message separator")
+    return Tag(object = object, kind = kind, name = name, tagger = tagger, message = input[at..])

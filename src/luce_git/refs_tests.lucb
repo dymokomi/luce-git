@@ -1,0 +1,16 @@
+import git
+import c
+
+pub func main(arguments: c.str[]) -> i32:
+    if arguments.length > 1:
+        for i in 1..<arguments.length:
+            print("yes" if git.valid_ref((str)arguments[i]) else "no")
+        return 0
+    assert(git.valid_ref("refs/heads/main"))
+    assert(git.valid_ref("refs/tags/v1.2.3"))
+    assert(not git.valid_ref("refs/heads/a\0b"))
+    assert(not git.valid_ref("HEAD"))
+    assert(not git.valid_ref("refs/heads/a.lock/b"))
+    assert(not git.valid_ref("refs/heads/../escape"))
+    print("PASS native ref syntax and embedded NUL rejection")
+    return 0

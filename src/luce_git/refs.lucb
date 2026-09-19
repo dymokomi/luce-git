@@ -1,0 +1,23 @@
+## Git's ordinary multi-component ref syntax, without normalization or patterns.
+## Namespace authorization, symbolic refs, filesystem aliases and D/F conflicts
+## belong to the repository layer. A syntactically valid ref is not a safe path.
+pub func valid(name: str) -> bool:
+    if name.length == 0 or name.length > 4096: return false
+    let bytes = name.bytes
+    if bytes[name.length - 1] == '.' or bytes[name.length - 1] == '/': return false
+    var start: usize = 0
+    var slash = false
+    for i in 0..<name.length:
+        let byte = bytes[i]
+        if byte <= 32 or byte == 127 or byte == '~' or byte == '^' or byte == ':' or byte == '?' or byte == '*' or byte == '[' or byte == '\\':
+            return false
+        if i > 0 and ((byte == '.' and bytes[i - 1] == '.') or (byte == '{' and bytes[i - 1] == '@')):
+            return false
+        if i == start and byte == '.': return false
+        if byte == '/':
+            if i == start: return false
+            if i - start >= 5 and (str)bytes[i - 5..<i] == ".lock": return false
+            start = i + 1
+            slash = true
+    if name.length - start >= 5 and (str)bytes[name.length - 5..] == ".lock": return false
+    return slash

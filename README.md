@@ -79,6 +79,15 @@ selection is not implemented. This encoder does not validate object semantics or
 authorize publication. Tests require stock Git `index-pack --strict`, `cat-file`
 and `fsck --strict` to accept a native-written fixture repository.
 
+`valid_ref(name)` checks ordinary multi-component ref syntax without allocation,
+normalization, wildcard expansion or branch-shorthand handling. It follows
+[Git's ref-format rules](https://git-scm.com/docs/git-check-ref-format), with an
+additional 4096-byte limit. `HEAD` and other one-level symbolic names are outside
+this API. A valid name is not authorization or a safe filesystem path: repository
+namespace restrictions, conflicting prefixes, aliases and atomic ref updates are
+still required. Differential tests cover fixed cases, ASCII bytes, Unicode and
+deterministic generated names against `git check-ref-format`.
+
 `encode_packet` / `decode_packet` provide binary-safe pkt-line framing with a
 65520-byte total limit, plus flush, delimiter and response-end controls. The
 decoder returns one packet and a consumed count; fields borrow retained input.

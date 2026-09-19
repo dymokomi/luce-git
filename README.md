@@ -48,6 +48,16 @@ implicitly apply semantic policies. Ordering follows
 [Git's tree comparator](https://github.com/git/git/blob/master/tree.c), with
 tests against `git mktree` and hostile structural fixtures.
 
+`apply_delta(base, instructions, output)` reconstructs a Git pack delta from an
+already resolved base, returning the result length. It validates sizes, copy
+ranges, literals and complete output length before writing; errors leave output
+unchanged. Each buffer is limited to 64 MiB. Inputs must remain stable and must
+not overlap output. It allocates no memory and does not recursively resolve bases.
+Pack-level checksums, base lookup, delta-chain depth, aggregate budgets and object
+validation still belong to the unfinished pack reader. Based on the
+[Git pack delta format](https://git-scm.com/docs/gitformat-pack), with independent
+generated packs reconstructed by stock `git index-pack` as the test oracle.
+
 `encode_packet` / `decode_packet` provide binary-safe pkt-line framing with a
 65520-byte total limit, plus flush, delimiter and response-end controls. The
 decoder returns one packet and a consumed count; fields borrow retained input.

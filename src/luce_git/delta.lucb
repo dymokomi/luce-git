@@ -1,0 +1,60 @@
+## Git pack delta instructions over an already reconstructed base object.
+from luce_git.object import invalid
+
+func size_value(data: const u8[], at: usize*) -> usize!:
+    var value: usize = 0
+    var factor: usize = 1
+    while true:
+        if *at == data.length: error(invalid, "truncated delta size")
+        let byte = data[*at]
+        *at += 1
+        let part = (usize)(byte & 127) *? factor else error(invalid, "delta size overflow")
+        value = value +? part else error(invalid, "delta size overflow")
+        if byte & 128 == 0: return value
+        factor = factor *? 128 else error(invalid, "delta size overflow")
+
+func walk(base: const u8[], delta: const u8[], output: u8[], write: bool) -> usize!:
+    var at: usize = 0
+    if try size_value(delta, &at) != base.length: error(invalid, "delta base size mismatch")
+    let target = try size_value(delta, &at)
+    if target > output.length: error(invalid, "delta output limit exceeded")
+    var used: usize = 0
+    while at < delta.length:
+        let opcode = delta[at]
+        at += 1
+        if opcode == 0: error(invalid, "reserved delta opcode")
+        if opcode & 128 != 0:
+            var offset: usize = 0
+            var size: usize = 0
+            for bit in 0..<7:
+                if opcode & ((u8)1 << bit) != 0:
+                    if at == delta.length: error(invalid, "truncated delta copy")
+                    if bit < 4: offset |= (usize)delta[at] << (bit * 8)
+                    else: size |= (usize)delta[at] << ((bit - 4) * 8)
+                    at += 1
+            if size == 0: size = 65536
+            if offset > base.length or size > base.length - offset:
+                error(invalid, "delta copy outside base")
+            if size > target - used: error(invalid, "delta result exceeds declared size")
+            if write:
+                for i in 0..<size: output[used + i] = base[offset + i]
+            used += size
+        else:
+            let size = (usize)opcode
+            if size > delta.length - at: error(invalid, "truncated delta literal")
+            if size > target - used: error(invalid, "delta result exceeds declared size")
+            if write:
+                for i in 0..<size: output[used + i] = delta[at + i]
+            at += size
+            used += size
+    if used != target: error(invalid, "delta result shorter than declared size")
+    return used
+
+## Validate then apply; errors leave output unchanged. No allocation, recursion or
+## object lookup. Output must not overlap either input, which must remain stable.
+## Chain depth, aggregate work and object type/ID belong to the pack resolver.
+pub func apply(base: const u8[], delta: const u8[], output: u8[]) -> usize!:
+    if base.length > 67108864 or delta.length > 67108864 or output.length > 67108864:
+        error(invalid, "buffered delta limit exceeded")
+    discard(try walk(base, delta, output, false))
+    return try walk(base, delta, output, true)

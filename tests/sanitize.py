@@ -8,6 +8,7 @@ from run import ROOT, SOURCES
 from object_oracle import check
 from loose_oracle import check as check_loose
 from tree_oracle import check as check_tree
+from delta_oracle import check as check_delta
 
 
 def main():
@@ -33,6 +34,7 @@ def main():
         if name == 'object-tests': check(output / name)
         if name == 'loose-tests': check_loose(output / name)
         if name == 'tree-tests': check_tree(output / name)
+        if name == 'delta-tests': check_delta(output / name)
     print("PASS AddressSanitizer + UndefinedBehaviorSanitizer", flush=True)
 
 

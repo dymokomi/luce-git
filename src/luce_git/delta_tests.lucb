@@ -1,0 +1,37 @@
+import git
+import files
+import c
+import memory
+
+func rejected(delta: const u8[]):
+    var output: u8[64]
+    for i in 0..<output.length: output[i] = 77
+    var failed = false
+    discard(git.apply_delta(b"hello", delta, output) catch failure:
+        failed = true
+        recover 0)
+    assert(failed)
+    for byte in output: assert(byte == 77)
+
+pub func main(arguments: c.str[]) -> i32!:
+    if arguments.length == 4:
+        let base = try files.read_limit(arguments[1], 1048576)
+        defer free(base) in memory.heap
+        let delta = try files.read_limit(arguments[2], 1048576)
+        defer free(delta) in memory.heap
+        let output = try alloc u8[1048576] in memory.heap
+        defer free(output) in memory.heap
+        let size = try git.apply_delta(base, delta, output)
+        try files.write(arguments[3], output[..<size])
+        return 0
+    assert(arguments.length == 1)
+    let valid = b"\x05\x06\x90\x05\x01!"
+    var output: u8[64]
+    let size = try git.apply_delta(b"hello", valid, output)
+    assert(size == 6 and (str)output[..<size] == "hello!")
+    for end in 0..<valid.length: rejected(valid[..<end])
+    for wire in [b"\x04\x00", b"\x05\x00\x00", b"\x05\x01\x01", b"\x05\x01\x02ab", b"\x05\x00\x01x", b"\x05\x01\x91\x05\x01", b"\x05\x01\x80", b"\x05\x01\xff", b"\x05\x41", b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"]:
+        rejected(wire)
+    assert(try git.apply_delta(b"", b"\0\0", output) == 0)
+    print("PASS delta copy/literal reconstruction, truncation, range/size/overflow and atomic rejection")
+    return 0

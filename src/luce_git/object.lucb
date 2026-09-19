@@ -4,6 +4,14 @@ import crypto_native
 
 pub let invalid = crypto_native.invalid
 
+pub struct Object:
+    pub var kind: str
+    pub var payload: const u8[]
+
+func check_kind(kind: str) -> !:
+    if kind != "blob" and kind != "tree" and kind != "commit" and kind != "tag":
+        error(invalid, "unknown Git object kind")
+
 func append_decimal(out: u8[], at: usize, value: usize) -> usize:
     if value == 0:
         out[at] = '0'
@@ -22,23 +30,63 @@ func append_decimal(out: u8[], at: usize, value: usize) -> usize:
         i += 1
     return i
 
-pub func hash_blob(payload: const u8[], out: u8[]) -> usize!:
+func make_header(kind: str, size: usize, header: u8[]) -> usize!:
+    try check_kind(kind)
+    for i in 0..<kind.length: header[i] = kind.bytes[i]
+    header[kind.length] = ' '
+    var at = append_decimal(header, kind.length + 1, size)
+    header[at] = 0
+    return at + 1
+
+## Uncompressed loose-object representation; output must not overlap payload.
+## All validation precedes writes. Kind contents require separate validation.
+pub func encode(kind: str, payload: const u8[], out: u8[]) -> usize!:
+    var header: u8[32]
+    let at = try make_header(kind, payload.length, header)
+    let total = at +? payload.length else error(invalid, "Git object size overflow")
+    if out.length < total: error(invalid, "Git object output is too small")
+    for i in 0..<at: out[i] = header[i]
+    for i in 0..<payload.length: out[at + i] = payload[i]
+    return total
+
+## Decode an entire uncompressed object; returned fields borrow unchanged input.
+## Canonical decimal length, exact payload length, and known kinds are required.
+pub func decode(input: const u8[]) -> Object!:
+    var at: usize = 0
+    while at < input.length and input[at] != ' ':
+        if at >= 6: error(invalid, "invalid Git object header")
+        at += 1
+    if at == 0 or at == input.length: error(invalid, "missing Git object kind")
+    let kind = (str)input[..<at]
+    try check_kind(kind)
+    at += 1
+    let start = at
+    var size: usize = 0
+    while at < input.length and input[at] != 0:
+        let byte = input[at]
+        if byte < '0' or byte > '9': error(invalid, "invalid Git object length")
+        if at > start and input[start] == '0': error(invalid, "noncanonical Git object length")
+        let scaled = size *? 10 else error(invalid, "Git object size overflow")
+        size = scaled +? (usize)(byte - '0') else error(invalid, "Git object size overflow")
+        at += 1
+    if at == start or at == input.length: error(invalid, "missing Git object length terminator")
+    at += 1
+    if size != input.length - at: error(invalid, "Git object payload length mismatch")
+    return Object(kind = kind, payload = input[at..])
+
+pub func hash_object(kind: str, payload: const u8[], out: u8[]) -> usize!:
     if out.length < 20: error(invalid, "Git object hash output is too small")
     var header: u8[32]
-    header[0] = 'b'
-    header[1] = 'l'
-    header[2] = 'o'
-    header[3] = 'b'
-    header[4] = ' '
-    var at = append_decimal(header, 5, payload.length)
-    header[at] = 0
-    at += 1
-    let total = at + payload.length
+    let at = try make_header(kind, payload.length, header)
+    let total = at +? payload.length else error(invalid, "Git object size overflow")
     let buffer = try alloc u8[total] in memory.heap
     defer free(buffer) in memory.heap
     for i in 0..<at: buffer[i] = header[i]
     for i in 0..<payload.length: buffer[at + i] = payload[i]
     return try crypto_native.sha1_digest(buffer, out)
+
+pub func hash_blob(payload: const u8[], out: u8[]) -> usize!:
+    return try hash_object("blob", payload, out)
 
 pub func hex_id(id: const u8[], out: u8[]) -> usize!:
     if id.length != 20 or out.length < 40: error(invalid, "Git object id is 20 bytes")

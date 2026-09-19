@@ -4,11 +4,13 @@ import argparse
 import os
 from pathlib import Path
 import subprocess
+from object_oracle import check
 
 ROOT = Path(__file__).resolve().parents[1]
 MODES = {f"native{i}": ["--native", "--opt", str(i)] for i in range(4)}
 MODES.update({"c": ["--backend=c"], "c-release": ["--backend=c", "--release"]})
 SOURCES = [("src/luce_git/git_tests.lucb", "git-tests"),
+           ("src/luce_git/object_tests.lucb", "object-tests"),
            ("src/luce_git/packet_tests.lucb", "packet-tests")]
 
 
@@ -32,6 +34,7 @@ def main():
         for source, name in SOURCES:
             run([args.base.resolve(), "build", ROOT / source, *flags, "-o", output / name])
             run([output / name])
+            if name == 'object-tests': check(output / name)
         print(f"PASS {mode}", flush=True)
     print("PASS all selected compiler modes", flush=True)
 

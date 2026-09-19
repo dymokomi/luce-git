@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 import subprocess
 from run import ROOT, SOURCES
+from object_oracle import check
 
 
 def main():
@@ -27,6 +28,7 @@ def main():
              "-fsanitize=address,undefined", "-fno-omit-frame-pointer", "-I", runtime,
              generated, runtime / "lucb_rt.c", "-pthread", "-lm", "-o", output / name])
         run([output / name])
+        if name == 'object-tests': check(output / name)
     print("PASS AddressSanitizer + UndefinedBehaviorSanitizer", flush=True)
 
 

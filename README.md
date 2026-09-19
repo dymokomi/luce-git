@@ -6,6 +6,22 @@ SHA-1 is not used for release signatures or vaults.
 
 Experimental. Packs, refs and Smart HTTP are later slices.
 
+`hash_object(kind, payload, output)` supports blob, tree, commit and tag IDs;
+`hash_blob` remains a convenience wrapper. `encode_object` and `decode_object`
+handle the **uncompressed** loose-object envelope: known kind, canonical decimal
+size, NUL, and exact binary payload. Decode borrows unchanged input. Encode requires
+non-overlapping input/output and rejects invalid requests before writing. Hashing
+currently allocates one header-plus-payload buffer; callers must bound input sizes.
+These functions do not validate tree/commit/tag semantics, object references,
+SHA-1 collision attacks, compression, or storage durability. They are not a safe
+object-ingestion service on their own. Release authenticity still uses ML-DSA-65
+and SHA-256, not Git SHA-1.
+
+Based on [Git object storage](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects).
+Tests compare all four types against stock `git hash-object --literally` and an
+independent SHA-1 implementation, plus canonical framing and rejection tests.
+Stock Git is only an interoperability oracle, never a runtime dependency.
+
 `encode_packet` / `decode_packet` provide binary-safe pkt-line framing with a
 65520-byte total limit, plus flush, delimiter and response-end controls. The
 decoder returns one packet and a consumed count; fields borrow retained input.

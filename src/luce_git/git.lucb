@@ -11,6 +11,16 @@ pub func encode_packet(kind: PacketKind, payload: const u8[], output: u8[]) -> u
     return try packet.encode(kind, payload, output)
 
 pub let invalid = object.invalid
+pub type Object = object.Object
+
+pub func encode_object(kind: str, payload: const u8[], out: u8[]) -> usize!:
+    return try object.encode(kind, payload, out)
+
+pub func decode_object(input: const u8[]) -> Object!:
+    return try object.decode(input)
+
+pub func hash_object(kind: str, payload: const u8[], out: u8[]) -> usize!:
+    return try object.hash_object(kind, payload, out)
 
 pub func hash_blob(payload: const u8[], out: u8[]) -> usize!:
     return try object.hash_blob(payload, out)

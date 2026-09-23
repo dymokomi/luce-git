@@ -1,7 +1,7 @@
 #prisma 4.0
 def package "luce-git" {
     str owner = "dymokomi"
-    str version = "0.1.2"
+    str version = "0.1.3"
     str kind = "package"
     str language = "luce-base"
     str description = "Native Git object identity for Luce Base. MIT OR Apache-2.0. v1 object IDs are SHA-1 of canonical {type} {size}0{payload} as in stock Git. SHA-1 is not used for release signatures or vaults."
@@ -21,5 +21,11 @@ def package "luce-git" {
         str owner = "dymokomi"
         str version = "^0.1.0"
         str path = "../luce-compress"
+    }
+
+    def dependency "luce-std" {
+        str owner = "dymokomi"
+        str version = "^0.1.0"
+        str path = "../luce-std"
     }
 }

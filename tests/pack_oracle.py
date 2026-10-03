@@ -71,7 +71,7 @@ def check(binary):
         run(finish(full + pack_header(6, len(delta)) + b'\0' + zlib.compress(delta), 2))
         run(finish(full + pack_header(6, len(delta)) + ofs(len(full) - 1) + zlib.compress(delta), 2))
         for version in (0, 1, 4): run(finish(b'', 0, version))
-        run(finish(b'', 4097))
+        run(finish(b'', 65537))
         run(finish(full, 0))
         run(finish(full, 2))
         run(finish(full + b'extra', 1))
@@ -108,4 +108,23 @@ def check(binary):
         for flags in ([], ['--delta-base-offset']):
             wire = subprocess.check_output(['git', '--git-dir', str(repo), 'pack-objects', '--stdout', '--window=24', '--depth=20', *flags], input=b'\n'.join(ids) + b'\n')
             run(wire, expected)
-    print('PASS native packs: forward REF/OFS deltas, stock Git packs, checksum/framing/limits and rejection', flush=True)
+        # A large push: more objects than the old 4096 cap, most of them deltas, which
+        # resolve in a few passes rather than one base per pass.
+        many, many_expected = [], []
+        stock = b''.join(f'line {n} of a shared source file\n'.encode() for n in range(300))
+        for i in range(5000):
+            payload = stock + f'revision {i}\n'.encode()
+            many_expected.append(line(payload))
+            many.append(payload)
+        hashed = subprocess.run(['git', '--git-dir', str(repo), 'hash-object', '-w', '--stdin-paths'],
+                                input='\n'.join(str(write_blob(root, i, payload)) for i, payload in enumerate(many)).encode(),
+                                capture_output=True, check=True).stdout
+        wire = subprocess.check_output(['git', '--git-dir', str(repo), 'pack-objects', '--stdout', '--delta-base-offset'], input=hashed)
+        run(wire, many_expected)
+    print('PASS native packs: forward REF/OFS deltas, stock Git packs (5000 objects too), checksum/framing/limits and rejection', flush=True)
+
+
+def write_blob(root, index, payload):
+    path = root / f'blob{index}'
+    path.write_bytes(payload)
+    return path

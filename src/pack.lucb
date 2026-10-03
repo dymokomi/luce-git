@@ -86,6 +86,32 @@ func expand(item: Item*, base: object.Object, depth: usize, bytes: usize*) -> !:
     try identify(item)
     *bytes += size
 
+## The item at pack offset `offset`, by binary search: items are parsed, and so lie, in
+## increasing offset order.
+func at_offset(pack: Pack*, offset: usize) -> Item*?:
+    var low: usize = 0
+    var high = pack.items.length
+    while low < high:
+        let middle = low + (high - low) // 2
+        let found = pack.items[middle].offset
+        if found == offset: return &pack.items[middle]
+        if found < offset: low = middle + 1
+        else: high = middle
+    return none
+
+## The resolved item of the pack whose object ID is `id`. A scan, charged to `budget`:
+## git sends a ref-delta against an in-pack base rarely, usually naming an external one.
+func with_id(pack: Pack*, id: const u8[], budget: usize*) -> Item*?!:
+    for i in 0..<pack.items.length:
+        if *budget == 0: error(object.invalid, "pack resolution work limit exceeded")
+        *budget -= 1
+        let base = &pack.items[i]
+        if base.resolved and crypto_native.equal(base.id, id): return base
+    return none
+
+## Resolve every delta: each pass expands all items whose base is resolved, so the passes
+## number about the deepest delta chain; an ofs-delta finds its base by offset at once.
+## Ref-deltas whose base is in neither the pack nor `lookup` leave the pack unresolvable.
 func resolve(pack: Pack*, total: usize, lookup: Lookup, context: void*?) -> !:
     var bytes = total
     var budget: usize = 16777216
@@ -99,22 +125,17 @@ func resolve(pack: Pack*, total: usize, lookup: Lookup, context: void*?) -> !:
         for i in 0..<pack.items.length:
             let item = &pack.items[i]
             if item.resolved: continue
-            for j in 0..<pack.items.length:
-                if budget == 0: error(object.invalid, "pack resolution work limit exceeded")
-                budget -= 1
-                let base = &pack.items[j]
-                if not base.resolved: continue
-                let matches = base.offset == item.base_offset if item.form == 6 else crypto_native.equal(base.id, item.base_id)
-                if not matches: continue
-                try expand(item, object.Object(base.kind, base.payload), base.depth, &bytes)
-                unresolved -= 1
-                progress = true
-                break
+            let found = at_offset(pack, item.base_offset) if item.form == 6 else try with_id(pack, item.base_id, &budget)
+            let base = found else continue
+            if not base.resolved: continue
+            try expand(item, object.Object(base.kind, base.payload), base.depth, &bytes)
+            unresolved -= 1
+            progress = true
         if progress: continue
         for i in 0..<pack.items.length:
             let item = &pack.items[i]
             if item.resolved or item.form != 7: continue
-            if lookups >= 4096: error(object.invalid, "external pack lookup limit exceeded")
+            if lookups >= 65536: error(object.invalid, "external pack lookup limit exceeded")
             lookups += 1
             let base = (try lookup(item.base_id, context)) else continue
             if base.payload.length > 67108864 - external_bytes:
@@ -127,7 +148,6 @@ func resolve(pack: Pack*, total: usize, lookup: Lookup, context: void*?) -> !:
             try expand(item, base, 0, &bytes)
             unresolved -= 1
             progress = true
-            break
         if not progress: error(object.invalid, "missing or cyclic pack delta base")
 
 ## Accept complete self-contained version 2/3 SHA-1 packs. All returned bytes are
@@ -144,7 +164,7 @@ pub func decode(input: const u8[], lookup: Lookup = missing, context: void*? = n
     let version = try uint32(wire, &at)
     if version != 2 and version != 3: error(object.invalid, "unsupported pack version")
     let count = try uint32(wire, &at)
-    if count > 4096: error(object.invalid, "pack object count limit exceeded")
+    if count > 65536: error(object.invalid, "pack object count limit exceeded")
     var result = Pack()
     errdefer result.close()
     if count > 0:

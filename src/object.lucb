@@ -3,6 +3,9 @@ import memory
 from luce_crypto import native as crypto_native
 
 pub let invalid = crypto_native.invalid
+## Objects one pack may hold, read or written: the registry's pushes, releases and fetches
+## of a repository's whole tree stay under it.
+pub let max_pack_objects: usize = 65536
 
 pub struct Object:
     pub var kind: str

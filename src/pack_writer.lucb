@@ -18,7 +18,7 @@ func put(buffer: u8[], used: usize*, data: const u8[]) -> !:
     *used += data.length
 
 pub func encode(objects: const object.Object[], output: u8[]) -> usize!:
-    if objects.length > 4096 or output.length < 32 or output.length > 67108864:
+    if objects.length > object.max_pack_objects or output.length < 32 or output.length > 67108864:
         error(object.invalid, "pack writer count or output limit invalid")
     var total: usize = 0
     for item in objects:

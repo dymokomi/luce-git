@@ -135,7 +135,7 @@ func resolve(pack: Pack*, total: usize, lookup: Lookup, context: void*?) -> !:
         for i in 0..<pack.items.length:
             let item = &pack.items[i]
             if item.resolved or item.form != 7: continue
-            if lookups >= 65536: error(object.invalid, "external pack lookup limit exceeded")
+            if lookups >= object.max_pack_objects: error(object.invalid, "external pack lookup limit exceeded")
             lookups += 1
             let base = (try lookup(item.base_id, context)) else continue
             if base.payload.length > 67108864 - external_bytes:
@@ -164,7 +164,7 @@ pub func decode(input: const u8[], lookup: Lookup = missing, context: void*? = n
     let version = try uint32(wire, &at)
     if version != 2 and version != 3: error(object.invalid, "unsupported pack version")
     let count = try uint32(wire, &at)
-    if count > 65536: error(object.invalid, "pack object count limit exceeded")
+    if count > object.max_pack_objects: error(object.invalid, "pack object count limit exceeded")
     var result = Pack()
     errdefer result.close()
     if count > 0:

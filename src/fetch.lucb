@@ -1,7 +1,7 @@
 ## Bounded stateless SHA-1 upload-pack request, without shallow/filter extensions.
-import luce_git.packet as packet
-import luce_git.commit as commit
-from luce_git.object import invalid
+import packet
+import commit
+from object import invalid
 
 pub struct Request:
     ## Views borrow unchanged input. Wants still require repository authorization.

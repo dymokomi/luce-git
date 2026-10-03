@@ -1,5 +1,5 @@
 ## Original bounded structural parser for SHA-1 commit payloads, not full fsck.
-from luce_git.object import invalid
+from object import invalid
 import strings
 
 pub let max_parents: usize = 4096

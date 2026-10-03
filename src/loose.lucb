@@ -1,9 +1,9 @@
 ## Bounded zlib loose-object transport. No filesystem or object graph policy here.
-import compress
+import luce_compress.compress
 import interop
 import memory
-import crypto_native
-import luce_git.object as object
+import luce_crypto.native as crypto_native
+import object
 
 pub let maximum: usize = 67108864
 pub type Compressed = compress.Data

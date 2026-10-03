@@ -1,6 +1,6 @@
 ## Borrowed SHA-1 tree entries and bounded structural validation.
 import memory
-from luce_git.object import invalid
+from object import invalid
 
 pub struct Entry:
     pub var mode: str

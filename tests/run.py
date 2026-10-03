@@ -19,19 +19,19 @@ from fetch_oracle import check as check_fetch
 ROOT = Path(__file__).resolve().parents[1]
 MODES = {f"native{i}": ["--native", "--opt", str(i)] for i in range(4)}
 MODES.update({"c": ["--backend=c"], "c-release": ["--backend=c", "--release"]})
-SOURCES = [("src/luce_git/git_tests.lucb", "git-tests"),
-           ("src/luce_git/fetch_tests.lucb", "fetch-tests"),
-           ("src/luce_git/push_tests.lucb", "push-tests"),
-           ("src/luce_git/tag_tests.lucb", "tag-tests"),
-           ("src/luce_git/commit_tests.lucb", "commit-tests"),
-           ("src/luce_git/refs_tests.lucb", "refs-tests"),
-           ("src/luce_git/pack_writer_tests.lucb", "pack-writer-tests"),
-           ("src/luce_git/pack_tests.lucb", "pack-tests"),
-           ("src/luce_git/delta_tests.lucb", "delta-tests"),
-           ("src/luce_git/tree_tests.lucb", "tree-tests"),
-           ("src/luce_git/loose_tests.lucb", "loose-tests"),
-           ("src/luce_git/object_tests.lucb", "object-tests"),
-           ("src/luce_git/packet_tests.lucb", "packet-tests")]
+SOURCES = [("src/git_tests.lucb", "git-tests"),
+           ("src/fetch_tests.lucb", "fetch-tests"),
+           ("src/push_tests.lucb", "push-tests"),
+           ("src/tag_tests.lucb", "tag-tests"),
+           ("src/commit_tests.lucb", "commit-tests"),
+           ("src/refs_tests.lucb", "refs-tests"),
+           ("src/pack_writer_tests.lucb", "pack-writer-tests"),
+           ("src/pack_tests.lucb", "pack-tests"),
+           ("src/delta_tests.lucb", "delta-tests"),
+           ("src/tree_tests.lucb", "tree-tests"),
+           ("src/loose_tests.lucb", "loose-tests"),
+           ("src/object_tests.lucb", "object-tests"),
+           ("src/packet_tests.lucb", "packet-tests")]
 
 
 def main():

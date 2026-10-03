@@ -1,5 +1,5 @@
 ## Binary-safe Git pkt-line framing. Views borrow the caller's input.
-import luce_git.object as object
+import object
 
 pub enum Kind as u8:
     data = 0

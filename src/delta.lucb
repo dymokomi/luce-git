@@ -1,5 +1,5 @@
 ## Git pack delta instructions over an already reconstructed base object.
-from luce_git.object import invalid
+from object import invalid
 
 func size_value(data: const u8[], at: usize*) -> usize!:
     var value: usize = 0

@@ -1,9 +1,9 @@
 ## Deterministic full-object pack v2 writer. Delta selection is an optimization,
 ## not required for interoperability; this writer emits no thin packs.
-import compress
-import crypto_native
+import luce_compress.compress
+import luce_crypto.native as crypto_native
 import memory
-import luce_git.object as object
+import object
 
 func kind_code(kind: str) -> u8!:
     if kind == "commit": return 1

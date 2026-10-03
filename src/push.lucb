@@ -1,8 +1,8 @@
 ## Bounded SHA-1 receive-pack command framing, not authorization or graph validation.
-import luce_git.packet as packet
-import luce_git.commit as commit
-import luce_git.refs as refs
-from luce_git.object import invalid
+import packet
+import commit
+import refs
+from object import invalid
 
 pub struct Command:
     pub var old_id: str

@@ -1,6 +1,6 @@
 ## Bounded annotated-tag structure, not tagger or signature verification.
-from luce_git.object import invalid
-from luce_git.commit import decode_id
+from object import invalid
+from commit import decode_id
 import strings
 
 pub struct Tag:

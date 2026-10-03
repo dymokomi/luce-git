@@ -1,5 +1,5 @@
 import git
-import files
+import luce_std.files
 import c
 
 pub func main(arguments: c.str[]) -> i32!:

@@ -1,6 +1,6 @@
 ## Git object IDs: SHA-1 of `{type} {size}\\0{payload}`. Not a release digest.
 import memory
-import crypto_native
+import luce_crypto.native as crypto_native
 
 pub let invalid = crypto_native.invalid
 

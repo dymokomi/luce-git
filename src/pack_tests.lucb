@@ -1,8 +1,8 @@
 import git
-import luce_std.files
+from luce_std import files
 import c
 import memory
-import luce_crypto.native as crypto_native
+from luce_crypto import native as crypto_native
 
 struct Bases:
     var pack: git.Pack

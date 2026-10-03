@@ -1,6 +1,6 @@
 import git
-import luce_compress.compress
-import luce_std.files
+from luce_compress import compress
+from luce_std import files
 import memory
 import c
 

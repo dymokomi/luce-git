@@ -1,7 +1,7 @@
 ## Deterministic full-object pack v2 writer. Delta selection is an optimization,
 ## not required for interoperability; this writer emits no thin packs.
-import luce_compress.compress
-import luce_crypto.native as crypto_native
+from luce_compress import compress
+from luce_crypto import native as crypto_native
 import memory
 import object
 

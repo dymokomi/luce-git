@@ -1,12 +1,12 @@
 import git
 from luce_std import files
-import memory
 import c
 
 pub func main(arguments: c.str[]) -> i32!:
     if arguments.length == 2:
-        let wire = try files.read_limit(arguments[1], 67108864)
-        defer free(wire) in memory.heap
+        let file = try files.read(arguments[1], limit = 67108864)
+        defer file.release()
+        let wire = file.value
         let commit = try git.decode_commit(wire)
         print(commit.tree)
         print(f"{commit.parent_count}")

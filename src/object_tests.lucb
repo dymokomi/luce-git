@@ -1,6 +1,5 @@
 import git
 from luce_std import files
-import memory
 import c
 
 func rejected(input: const u8[]):
@@ -12,8 +11,9 @@ func rejected(input: const u8[]):
 
 pub func main(arguments: c.str[]) -> i32!:
     if arguments.length == 3:
-        let payload = try files.read_limit(arguments[2], 1048576)
-        defer free(payload) in memory.heap
+        let file = try files.read(arguments[2], limit = 1048576)
+        defer file.release()
+        let payload = file.value
         var id: u8[20]
         var text: u8[40]
         discard(try git.hash_object((str)arguments[1], payload, id))

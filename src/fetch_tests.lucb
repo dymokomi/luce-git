@@ -1,12 +1,12 @@
 import git
 from luce_std import files
-import memory
 import c
 
 pub func main(arguments: str[]) -> i32!:
     if arguments.length == 2:
-        let input = try files.read_limit((c.str)arguments[1], 1048577)
-        defer free(input) in memory.heap
+        let file = try files.read((c.str)arguments[1], limit = 1048577)
+        defer file.release()
+        let input = file.value
         let request = try git.decode_fetch(input)
         print(f"{request.wants} {request.haves}")
         print("done" if request.done else "round")

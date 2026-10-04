@@ -1,12 +1,12 @@
 import git
 from luce_std import files
-import memory
 import c
 
 pub func main(arguments: c.str[]) -> i32!:
     if arguments.length == 2:
-        let wire = try files.read_limit(arguments[1], 67108864)
-        defer free(wire) in memory.heap
+        let wire_file = try files.read(arguments[1], limit = 67108864)
+        defer wire_file.release()
+        let wire = wire_file.value
         let count = try git.validate_tree(wire)
         print(f"{count}")
         return 0

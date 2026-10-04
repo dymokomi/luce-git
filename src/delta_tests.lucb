@@ -15,10 +15,12 @@ func rejected(delta: const u8[]):
 
 pub func main(arguments: c.str[]) -> i32!:
     if arguments.length == 4:
-        let base = try files.read_limit(arguments[1], 1048576)
-        defer free(base) in memory.heap
-        let delta = try files.read_limit(arguments[2], 1048576)
-        defer free(delta) in memory.heap
+        let base_file = try files.read(arguments[1], limit = 1048576)
+        defer base_file.release()
+        let base = base_file.value
+        let delta_file = try files.read(arguments[2], limit = 1048576)
+        defer delta_file.release()
+        let delta = delta_file.value
         let output = try alloc u8[1048576] in memory.heap
         defer free(output) in memory.heap
         let size = try git.apply_delta(base, delta, output)

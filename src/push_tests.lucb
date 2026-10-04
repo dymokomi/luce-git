@@ -1,6 +1,5 @@
 import git
 from luce_std import files
-import memory
 import c
 
 func rejected(wire: const u8[]) -> !:
@@ -13,8 +12,9 @@ func rejected(wire: const u8[]) -> !:
 
 pub func main(arguments: str[]) -> i32!:
     if arguments.length == 2:
-        let input = try files.read_limit((c.str)arguments[1], 68157440)
-        defer free(input) in memory.heap
+        let file = try files.read((c.str)arguments[1], limit = 68157440)
+        defer file.release()
+        let input = file.value
         let request = try git.decode_push(input)
         print(f"{request.count}")
         for i in 0..<request.count:

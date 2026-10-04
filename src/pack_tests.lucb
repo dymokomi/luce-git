@@ -1,7 +1,6 @@
 import git
 from luce_std import files
 import c
-import memory
 from luce_crypto import native as crypto_native
 
 struct Bases:
@@ -20,13 +19,15 @@ func lookup(id: const u8[], context: void*?) -> git.Object?!:
 
 pub func main(arguments: c.str[]) -> i32!:
     if arguments.length >= 2:
-        let input = try files.read_limit(arguments[1], 67108864)
-        defer free(input) in memory.heap
+        let input_file = try files.read(arguments[1], limit = 67108864)
+        defer input_file.release()
+        let input = input_file.value
         var bases = Bases()
         defer bases.pack.close()
         if arguments.length >= 3:
-            let source = try files.read_limit(arguments[2], 67108864)
-            defer free(source) in memory.heap
+            let source_file = try files.read(arguments[2], limit = 67108864)
+            defer source_file.release()
+            let source = source_file.value
             bases.pack = try git.decode_pack(source)
         bases.wrong = arguments.length == 4
         var pack = try git.decode_pack_with(input, lookup, (void*)&bases)

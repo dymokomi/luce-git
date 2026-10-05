@@ -16,21 +16,21 @@ pub func main(arguments: str[]) -> i32!:
         return 0
     var empty: const u8[]
     var failed = false
-    discard(git.decode_fetch(empty) catch:
+    _ = git.decode_fetch(empty) catch:
         failed = true
-        recover git.FetchRequest())
+        recover git.FetchRequest()
     assert(failed)
     let request = try git.decode_fetch(b"0000")
     assert(request.wants == 0 and not request.done)
     failed = false
-    discard(request.want(0) catch:
+    _ = request.want(0) catch:
         failed = true
-        recover "")
+        recover ""
     assert(failed)
     failed = false
-    discard(request.have(0) catch:
+    _ = request.have(0) catch:
         failed = true
-        recover "")
+        recover ""
     assert(failed)
     print("PASS fetch empty input, flush and accessor bounds")
     return 0

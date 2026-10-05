@@ -104,7 +104,7 @@ pub func validate(input: const u8[]) -> usize!:
     if count < 2: return count
     # Name-only heapsort detects nonadjacent file/directory duplicates with
     # bounded O(n log n) work; Git's directory-as-slash order differs from names.
-    let names = try alloc str[count] in memory.heap
+    let names = try new str[count] --- in memory.heap
     defer free(names) in memory.heap
     at = 0
     for i in 0..<count:

@@ -8,9 +8,9 @@ func rejected(input: const u8[], id: const u8[], capacity: usize):
     var output: u8[256]
     for i in 0..<output.length: output[i] = 77
     var failed = false
-    discard(git.decode_loose(input, id, output[..<capacity]) catch failure:
+    _ = git.decode_loose(input, id, output[..<capacity]) catch failure:
         failed = true
-        recover git.Object())
+        recover git.Object()
     assert(failed)
     for byte in output: assert(byte == 77)
 
@@ -29,7 +29,7 @@ pub func main(arguments: c.str[]) -> i32!:
             let id_file = try files.read(arguments[2], limit = 20)
             defer id_file.release()
             let id = id_file.value
-            let output = try alloc u8[1048576] in memory.heap
+            let output = try new u8[1048576] --- in memory.heap
             defer free(output) in memory.heap
             let decoded = try git.decode_loose(input, id, output)
             try files.write(arguments[4], decoded.payload)
@@ -39,7 +39,7 @@ pub func main(arguments: c.str[]) -> i32!:
     var id: u8[20]
     var output: u8[256]
     for kind in ["blob", "tree", "commit", "tag"]:
-        discard(try git.hash_object(kind, payload, id))
+        _ = try git.hash_object(kind, payload, id)
         let encoded = try git.encode_loose(kind, payload)
         defer encoded.release()
         let compressed = try encoded.value().bytes()
@@ -64,7 +64,7 @@ pub func main(arguments: c.str[]) -> i32!:
     rejected(try invalid.value().bytes(), id, 256)
     let empty = try git.encode_loose("blob", b"")
     defer empty.release()
-    discard(try git.hash_blob(b"", id))
+    _ = try git.hash_blob(b"", id)
     assert((try git.decode_loose(try empty.value().bytes(), id, output)).payload.length == 0)
     print("PASS loose objects: zlib, binary, IDs, bounds, truncation, checksum and atomic rejection")
     return 0

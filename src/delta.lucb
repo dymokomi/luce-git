@@ -64,5 +64,5 @@ pub func result_size(base_size: usize, instructions: const u8[]) -> usize!:
 pub func apply(base: const u8[], delta: const u8[], output: u8[]) -> usize!:
     if base.length > 67108864 or delta.length > 67108864 or output.length > 67108864:
         error(invalid, "buffered delta limit exceeded")
-    discard(try walk(base, delta, output, false))
+    _ = try walk(base, delta, output, false)
     return try walk(base, delta, output, true)

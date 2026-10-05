@@ -4,9 +4,9 @@ import c
 
 func rejected(input: const u8[]):
     var failed = false
-    discard(git.decode_object(input) catch failure:
+    _ = git.decode_object(input) catch failure:
         failed = true
-        recover git.Object())
+        recover git.Object()
     assert(failed)
 
 pub func main(arguments: c.str[]) -> i32!:
@@ -16,8 +16,8 @@ pub func main(arguments: c.str[]) -> i32!:
         let payload = file.value
         var id: u8[20]
         var text: u8[40]
-        discard(try git.hash_object((str)arguments[1], payload, id))
-        discard(try git.hex_id(id, text))
+        _ = try git.hash_object((str)arguments[1], payload, id)
+        _ = try git.hex_id(id, text)
         print((str)text)
         return 0
     assert(arguments.length == 1)
@@ -38,22 +38,22 @@ pub func main(arguments: c.str[]) -> i32!:
     for kind in ["", "unknown", "Blob", "blob "]:
         for i in 0..<wire.length: wire[i] = 77
         var failed = false
-        discard(git.encode_object(kind, binary, wire) catch failure:
+        _ = git.encode_object(kind, binary, wire) catch failure:
             failed = true
-            recover 0)
+            recover 0
         assert(failed)
         failed = false
-        discard(git.hash_object(kind, binary, wire) catch failure:
+        _ = git.hash_object(kind, binary, wire) catch failure:
             failed = true
-            recover 0)
+            recover 0
         assert(failed)
         for byte in wire: assert(byte == 77)
     for capacity in 0..<binary.length + 8:
         for i in 0..<wire.length: wire[i] = 77
         var failed = false
-        discard(git.encode_object("blob", binary, wire[..<capacity]) catch failure:
+        _ = git.encode_object("blob", binary, wire[..<capacity]) catch failure:
             failed = true
-            recover 0)
+            recover 0
         assert(failed)
         for byte in wire: assert(byte == 77)
     print("PASS canonical object envelopes: four kinds, binary, empty, truncation, overflow and atomic rejection")

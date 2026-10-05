@@ -1,7 +1,7 @@
 import git
 
 pub func main(arguments: str[]) -> i32!:
-    discard(arguments)
+    _ = arguments
     var id: u8[20]
     var text: u8[40]
     try git.hash_blob(b"hello\n", id)

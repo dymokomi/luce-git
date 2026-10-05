@@ -29,16 +29,16 @@ pub func main(arguments: c.str[]) -> i32!:
     for capacity in capacities:
         for i in 0..<again.length: again[i] = 77
         var failed = false
-        discard(git.encode_pack(objects, again[..<capacity]) catch failure:
+        _ = git.encode_pack(objects, again[..<capacity]) catch failure:
             failed = true
-            recover 0)
+            recover 0
         assert(failed)
         for byte in again: assert(byte == 77)
     let bad: git.Object[1] = [git.Object(kind = "unknown", payload = b"")]
     var failed = false
-    discard(git.encode_pack(bad, again) catch failure:
+    _ = git.encode_pack(bad, again) catch failure:
         failed = true
-        recover 0)
+        recover 0
     assert(failed)
     for byte in again: assert(byte == 77)
     var empty: git.Object[]

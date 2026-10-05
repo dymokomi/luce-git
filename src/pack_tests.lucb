@@ -37,7 +37,7 @@ pub func main(arguments: c.str[]) -> i32!:
         for i in 0..<pack.items.length:
             let item = &pack.items[i]
             var text: u8[40]
-            discard(try git.hex_id(item.id, text))
+            _ = try git.hex_id(item.id, text)
             print(f"{item.kind} {(str)text} {item.payload.length}")
         pack.close()
         return 0

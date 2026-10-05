@@ -19,7 +19,7 @@ pub struct Item:
 pub struct Pack:
     pub var items: Item[]
 
-    pub mutating func close():
+    pub func close():
         for i in 0..<self.items.length:
             if self.items[i].payload.length > 0: free(self.items[i].payload) in memory.heap
         if self.items.length > 0: free(self.items) in memory.heap
@@ -38,7 +38,7 @@ func byte(input: const u8[], at: usize*) -> u8!:
 func uint32(input: const u8[], at: usize*) -> usize!:
     var value: usize = 0
     for i in 0..<4:
-        discard(i)
+        _ = i
         value = (value << 8) | (usize)try byte(input, at)
     return value
 
@@ -50,7 +50,7 @@ func kind_name(kind: u8) -> str!:
     error(object.invalid, "invalid full-object pack kind")
 
 func identify(item: Item*) -> !:
-    discard(try object.hash_object(item.kind, item.payload, item.id))
+    _ = try object.hash_object(item.kind, item.payload, item.id)
     item.resolved = true
 
 ## Return none for a missing base. The result borrows caller storage until the
@@ -58,8 +58,8 @@ func identify(item: Item*) -> !:
 pub type Lookup = func(const u8[], void*?) -> object.Object?!
 
 func missing(id: const u8[], context: void*?) -> object.Object?!:
-    discard(id)
-    discard(context)
+    _ = id
+    _ = context
     return none
 
 func expand(item: Item*, base: object.Object, depth: usize, bytes: usize*) -> !:
@@ -74,9 +74,9 @@ func expand(item: Item*, base: object.Object, depth: usize, bytes: usize*) -> !:
     let size = try delta.result_size(base.payload.length, item.payload)
     if size > 67108864 - *bytes: error(object.invalid, "pack expanded byte limit exceeded")
     var result: u8[]
-    if size > 0: result = try alloc u8[size] in memory.heap
+    if size > 0: result = try new u8[size] --- in memory.heap
     errdefer release_bytes(result)
-    discard(try delta.apply(base.payload, item.payload, result))
+    _ = try delta.apply(base.payload, item.payload, result)
     if item.payload.length > 0: free(item.payload) in memory.heap
     item.payload = result
     var empty: u8[]
@@ -142,7 +142,7 @@ func resolve(pack: Pack*, total: usize, lookup: Lookup, context: void*?) -> !:
                 error(object.invalid, "external pack base byte limit exceeded")
             external_bytes += base.payload.length
             var actual: u8[20]
-            discard(try object.hash_object(base.kind, base.payload, actual))
+            _ = try object.hash_object(base.kind, base.payload, actual)
             if not crypto_native.equal(actual, item.base_id):
                 error(object.invalid, "external pack base ID mismatch")
             try expand(item, base, 0, &bytes)
@@ -156,7 +156,7 @@ pub func decode(input: const u8[], lookup: Lookup = missing, context: void*? = n
     if input.length < 32 or input.length > 67108864: error(object.invalid, "pack byte limit invalid")
     let end = input.length - 20
     var checksum: u8[20]
-    discard(try crypto_native.sha1_digest(input[..<end], checksum))
+    _ = try crypto_native.sha1_digest(input[..<end], checksum)
     if not crypto_native.equal(checksum, input[end..]): error(object.invalid, "pack checksum mismatch")
     let wire = input[..<end]
     if (str)wire[..<4] != "PACK": error(object.invalid, "invalid pack magic")
@@ -168,7 +168,7 @@ pub func decode(input: const u8[], lookup: Lookup = missing, context: void*? = n
     var result = Pack()
     errdefer result.close()
     if count > 0:
-        result.items = try alloc Item[count] in memory.heap
+        result.items = try new Item[count] --- in memory.heap
         # alloc supplies storage, not initialized Item values. Initialize every
         # slot before parsing so both resolution and partial-error close are safe.
         for i in 0..<count: result.items[i] = Item()
@@ -208,7 +208,7 @@ pub func decode(input: const u8[], lookup: Lookup = missing, context: void*? = n
         if payload.length != size: error(object.invalid, "pack object length mismatch")
         at += (usize)try decoded.value().consumed()
         if size > 0:
-            item.payload = try alloc u8[size] in memory.heap
+            item.payload = try new u8[size] --- in memory.heap
             for j in 0..<size: item.payload[j] = payload[j]
         total += size
         if item.form < 5: try identify(item)

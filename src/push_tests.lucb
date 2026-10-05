@@ -1,13 +1,14 @@
 import git
 from luce_std import files
 import c
+import strings
 
 func rejected(wire: const u8[]) -> !:
     var failed = false
-    discard(git.decode_push(wire) catch failure:
+    _ = git.decode_push(wire) catch failure:
         assert(failure.code == git.invalid)
         failed = true
-        recover git.PushRequest())
+        recover git.PushRequest()
     assert(failed)
 
 pub func main(arguments: str[]) -> i32!:
@@ -40,9 +41,9 @@ pub func main(arguments: str[]) -> i32!:
     assert((try parsed.at(0)).new_id == "1111111111111111111111111111111111111111")
     for i in 0..<n: try rejected(wire[..<i])
     var bounds = false
-    discard(parsed.at(1) catch:
+    _ = parsed.at(1) catch:
         bounds = true
-        recover git.PushCommand())
+        recover git.PushCommand()
     assert(bounds)
     wire[header] = 'X'
     try rejected(wire[..<n])
@@ -52,10 +53,10 @@ pub func main(arguments: str[]) -> i32!:
     for i in 0..<(usize)65:
         var line: u8[256]
         let suffix = "\0report-status" if i == 0 else ""
-        let text = try format(line, f"1111111111111111111111111111111111111111 0000000000000000000000000000000000000000 refs/heads/b{i}{suffix}")
+        let text = try strings.format(line, f"1111111111111111111111111111111111111111 0000000000000000000000000000000000000000 refs/heads/b{i}{suffix}")
         n += try git.encode_packet(git.PacketKind.data, text.bytes, wire[n..])
         if i == 63:
-            discard(try git.encode_packet(git.PacketKind.flush, b"", wire[n..]))
+            _ = try git.encode_packet(git.PacketKind.flush, b"", wire[n..])
             let many = try git.decode_push(wire[..<n + 4])
             assert(many.count == 64 and (try many.at(63)).name == "refs/heads/b63")
     n += try git.encode_packet(git.PacketKind.flush, b"", wire[n..])

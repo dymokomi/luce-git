@@ -82,7 +82,7 @@ pub func hash_object(kind: str, payload: const u8[], out: u8[]) -> usize!:
     var header: u8[32]
     let at = try make_header(kind, payload.length, header)
     let total = at +? payload.length else error(invalid, "Git object size overflow")
-    let buffer = try alloc u8[total] in memory.heap
+    let buffer = try new u8[total] --- in memory.heap
     defer free(buffer) in memory.heap
     for i in 0..<at: buffer[i] = header[i]
     for i in 0..<payload.length: buffer[at + i] = payload[i]

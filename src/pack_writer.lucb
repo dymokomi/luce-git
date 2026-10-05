@@ -22,10 +22,10 @@ pub func encode(objects: const object.Object[], output: u8[]) -> usize!:
         error(object.invalid, "pack writer count or output limit invalid")
     var total: usize = 0
     for item in objects:
-        discard(try kind_code(item.kind))
+        _ = try kind_code(item.kind)
         if item.payload.length > 67108864 - total: error(object.invalid, "pack writer input limit exceeded")
         total += item.payload.length
-    let buffer = try alloc u8[output.length] in memory.heap
+    let buffer = try new u8[output.length] --- in memory.heap
     defer free(buffer) in memory.heap
     var used: usize = 0
     var header: u8[12] = ['P', 'A', 'C', 'K', 0, 0, 0, 2, 0, 0, 0, 0]
@@ -49,7 +49,7 @@ pub func encode(objects: const object.Object[], output: u8[]) -> usize!:
         defer compressed.release()
         try put(buffer, &used, try compressed.value().bytes())
     var checksum: u8[20]
-    discard(try crypto_native.sha1_digest(buffer[..<used], checksum))
+    _ = try crypto_native.sha1_digest(buffer[..<used], checksum)
     try put(buffer, &used, checksum)
     # Publication to caller memory happens only after every fallible operation.
     let wire = buffer[..<used]

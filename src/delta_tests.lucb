@@ -7,9 +7,9 @@ func rejected(delta: const u8[]):
     var output: u8[64]
     for i in 0..<output.length: output[i] = 77
     var failed = false
-    discard(git.apply_delta(b"hello", delta, output) catch failure:
+    _ = git.apply_delta(b"hello", delta, output) catch failure:
         failed = true
-        recover 0)
+        recover 0
     assert(failed)
     for byte in output: assert(byte == 77)
 
@@ -21,7 +21,7 @@ pub func main(arguments: c.str[]) -> i32!:
         let delta_file = try files.read(arguments[2], limit = 1048576)
         defer delta_file.release()
         let delta = delta_file.value
-        let output = try alloc u8[1048576] in memory.heap
+        let output = try new u8[1048576] --- in memory.heap
         defer free(output) in memory.heap
         let size = try git.apply_delta(base, delta, output)
         try files.write(arguments[3], output[..<size])

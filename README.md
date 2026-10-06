@@ -31,7 +31,7 @@ Failures leave the output unchanged; trailing/concatenated streams are rejected.
 This buffered API caps compressed input/output and decompressed storage at 64 MiB;
 encoding reserves 32 bytes of that limit for the header. Smaller caller buffers
 bound decompression, including high-expansion streams. Compression is entirely
-native `luce-compress`, pinned in `bootstrap/COMPRESS`. An expected SHA-1 ID is
+native `luce-compress`. An expected SHA-1 ID is
 not publisher authentication, collision protection or permission to extract paths.
 
 `encode_tree_entry` / `decode_tree_entry` handle borrowed binary SHA-1 tree entries.

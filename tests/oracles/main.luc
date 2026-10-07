@@ -1,0 +1,23 @@
+# The programs of tests/<name>/ against stock Git: oracles.py hands each one fixtures Git
+# wrote, or objects for Git to read back. `luc test` runs this with LUCE_BASE naming the
+# compiler that builds them.
+from luce_std import files, paths, process
+
+let failed = ErrorCode.package(1)
+
+pub func main(arguments: list[str]) -> int!:
+    let here = process.current_directory()
+    let tests = paths.directory(here)
+    let base = process.variable("LUCE_BASE") else "luce-base"
+    let binaries = paths.join(paths.directory(tests), "build/tests/oracles/programs")
+    files.ensure_directory(binaries)
+    for name in ["object", "loose", "tree", "delta", "pack", "pack_writer", "refs", "commit", "tag", "push", "fetch"]:
+        let built = process.run(base, ["build", paths.join(tests, f"{name}/main.lucb"), "--native", "-o", paths.join(binaries, name)], here)
+        if built.exit_code != 0:
+            error(failed, f"build {name}: {built.output}{built.error_output}")
+    let ran = process.run("python3", ["oracles.py", binaries], here)
+    print(ran.output)
+    if ran.exit_code != 0:
+        print(ran.error_output)
+        return 1
+    return 0

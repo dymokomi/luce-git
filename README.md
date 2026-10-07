@@ -179,6 +179,8 @@ Based on [Git's common protocol](https://git-scm.com/docs/protocol-common) and
 [protocol v2](https://git-scm.com/docs/gitprotocol-v2).
 
 ```sh
-python3 tools/bootstrap.py
-python3 tests/run.py
+luc test
 ```
+
+Each area is a test program, `tests/<name>/main.lucb` (object, pack, delta, refs, fetch,
+push, ...), and `tests/oracles` checks those programs against stock Git (`oracles.py`).
